@@ -22,16 +22,16 @@ Reset everything: `curl -X POST localhost:3000/api/reset`, or delete `elpis.db`.
 
 ## Share it with friends (Railway)
 
-Hosted, each friend's browser gets its own private Elpis (name, conversation, memory, Restworld), behind a passcode you choose.
+Hosted, each friend's browser gets its own private Elpis (name, conversation, memory, Restworld). A passcode is optional.
 
 1. railway.com → **New Project** → **Deploy from GitHub repo** → `elpis`. It builds from the `Dockerfile`.
-2. **Variables**: `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELPIS_PASSCODE` (any word you'll tell friends; not case-sensitive).
+2. **Variables**: `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, and optionally `ELPIS_PASSCODE` (any word you'll tell friends; not case-sensitive). Leave it out for no passcode.
 3. **Volume**: add a volume to the service, mounted at `/data`, so conversations survive redeploys.
 4. **Settings → Networking → Generate Domain**, then share the link and the passcode.
 
 **Or on Render:** render.com → **New → Blueprint** → `elpis`. `render.yaml` sets up the Starter plan, a disk at `/data` and the health check; Render asks for `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY` and `ELPIS_PASSCODE`.
 
-Without `ELPIS_PASSCODE` (like on your own machine) there's no passcode and a single user.
+On your own machine there's a single user and no passcode. Hosted on Render or Railway (or with `ELPIS_MULTIUSER=1`), every browser gets its own space, with or without a passcode.
 
 ## How it's built
 

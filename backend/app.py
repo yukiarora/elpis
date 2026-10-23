@@ -41,30 +41,45 @@ db.init()
 app = FastAPI(title="Elpis")
 
 
-# ---------- access: passcode + one private space per browser ----------
-# With ELPIS_PASSCODE unset (running on your own machine) there's no gate and one user, "local".
-# With it set (hosted), each browser that enters the passcode gets its own conversation and Restworld.
+# ---------- access: optional passcode + one private space per browser ----------
+# On your own machine there's one user, "local". Hosted (Render, Railway, or ELPIS_MULTIUSER=1),
+# each browser gets its own conversation and Restworld through a long-lived elpis_uid cookie.
+# ELPIS_PASSCODE, if set, also puts a passcode in front of it.
 
 PASSCODE = os.getenv("ELPIS_PASSCODE", "").strip()
 PASS_TOKEN = hmac.new(PASSCODE.encode(), b"elpis-access", hashlib.sha256).hexdigest() if PASSCODE else ""
+HOSTED = bool(PASSCODE or os.getenv("ELPIS_MULTIUSER") or os.getenv("RENDER") or os.getenv("RAILWAY_ENVIRONMENT"))
 YEAR = 365 * 24 * 3600
 OPEN_PATHS = {"/api/unlock", "/api/access"}
+UID_RE = re.compile(r"[0-9a-f]{32}")
+
+
+def _secure(request):
+    return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
 
 
 @app.middleware("http")
-async def passcode_gate(request: Request, call_next):
+async def access_gate(request: Request, call_next):
     path = request.url.path
     if PASSCODE and path.startswith("/api/") and path not in OPEN_PATHS:
         if not hmac.compare_digest(request.cookies.get("elpis_pass", ""), PASS_TOKEN):
             return JSONResponse({"detail": "locked"}, status_code=401)
-    return await call_next(request)
+    uid = request.cookies.get("elpis_uid", "")
+    fresh = HOSTED and not PASSCODE and not UID_RE.fullmatch(uid)
+    if fresh:
+        uid = uuid.uuid4().hex
+    request.state.uid = uid
+    res = await call_next(request)
+    if fresh:
+        res.set_cookie("elpis_uid", uid, max_age=YEAR, httponly=True, samesite="lax", secure=_secure(request))
+    return res
 
 
 def current_uid(request: Request) -> str:
-    if not PASSCODE:
+    if not HOSTED:
         return db.LOCAL
-    uid = request.cookies.get("elpis_uid", "")
-    if not re.fullmatch(r"[0-9a-f]{32}", uid):
+    uid = getattr(request.state, "uid", "")
+    if not UID_RE.fullmatch(uid):
         raise HTTPException(401, "locked")
     return uid
 
@@ -85,11 +100,11 @@ def unlock(body: UnlockIn, request: Request):
     if not hmac.compare_digest(body.passcode.strip().lower(), PASSCODE.lower()):
         time.sleep(1)   # slow down guessing
         raise HTTPException(403, "That passcode doesn't match.")
-    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    secure = _secure(request)
     res = JSONResponse({"ok": True})
     res.set_cookie("elpis_pass", PASS_TOKEN, max_age=YEAR, httponly=True, samesite="lax", secure=secure)
     uid = request.cookies.get("elpis_uid", "")
-    if not re.fullmatch(r"[0-9a-f]{32}", uid):
+    if not UID_RE.fullmatch(uid):
         res.set_cookie("elpis_uid", uuid.uuid4().hex, max_age=YEAR, httponly=True, samesite="lax", secure=secure)
     return res
 
