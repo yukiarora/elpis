@@ -325,69 +325,170 @@ $("j-keep").onclick = async () => {
   }
 };
 
-// ---------- Restworld: a canvas of little paper cards ----------
+// ---------- Restworld: paper cards floating on water ----------
+// Each card wanders on its own slowly-turning heading, sways a little, eases away from the edges
+// and from other cards (so nothing stacks). Drag a card to move just that card; drag empty space
+// to look around when there are more cards than fit. Tap a card to hold it close.
 
 const svgSrc = (svg) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-const rw = { x: 0, y: 0, moments: [] };
+const CARD_W = 88, CARD_H = 112, SPEED = 9, PERSONAL_SPACE = 118, EDGE = 56;
+const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const rw = { cards: [], panX: 0, panY: 0, W: 0, H: 0, worldW: 0, worldH: 0, raf: 0, last: 0, z: 1, t: 0 };
 
-// Stable, scattered spot for each card, spiralling out from the middle.
-function spot(i) {
-  if (i === 0) return { x: 0, y: 0 };
-  const angle = i * 2.4, r = 70 + 48 * Math.sqrt(i);
-  return { x: Math.cos(angle) * r, y: Math.sin(angle) * r * 0.9 };
-}
 function tilt(id) { const n = (typeof id === "number" ? id : 7) * 9301 + 49297; return ((n % 233280) / 233280) * 16 - 8; }
 
-function placePaper(m, { pending, fresh, index } = {}) {
-  const canvas = $("rw-canvas");
-  const i = index ?? canvas.children.length;
-  const { x, y } = spot(i);
+function sizeWorld() {
+  const box = $("rw").getBoundingClientRect();
+  rw.W = box.width; rw.H = box.height - 60;   // keep clear of the hint line
+  const grow = Math.max(1, Math.sqrt((rw.cards.length + 1) / 6));
+  rw.worldW = rw.W * grow; rw.worldH = rw.H * grow;
+  rw.panX = Math.min(0, Math.max(rw.W - rw.worldW, rw.panX));
+  rw.panY = Math.min(0, Math.max(rw.H - rw.worldH, rw.panY));
+}
+
+// An open spot: a few random tries, keep the one furthest from everyone else.
+function openSpot() {
+  let best = null, bestGap = -1;
+  for (let k = 0; k < 24; k++) {
+    const x = EDGE + Math.random() * (rw.worldW - 2 * EDGE), y = EDGE + Math.random() * (rw.worldH - 2 * EDGE);
+    const gap = Math.min(Infinity, ...rw.cards.map((c) => Math.hypot(c.x - x, c.y - y)));
+    if (gap > bestGap) { best = { x, y }; bestGap = gap; }
+  }
+  return best;
+}
+
+function placePaper(m, { pending, fresh } = {}) {
+  sizeWorld();
   const el = document.createElement("div");
-  el.className = "paper" + (fresh || pending ? " new" : "");
-  el.style.left = `${x - 44}px`; el.style.top = `${y - 56}px`;
-  // Each card floats on its own slow, out-of-sync drift (seeded by id so it's stable across visits)
-  const seed = typeof m.id === "number" ? m.id : 7, rnd = (k) => ((seed * 9301 + k * 49297) % 233280) / 233280;
-  el.style.setProperty("--rot", `${tilt(m.id)}deg`);
-  el.style.setProperty("--dx", `${(rnd(1) * 2 - 1) * 10}px`);
-  el.style.setProperty("--dy", `${-6 - rnd(2) * 8}px`);
-  el.style.setProperty("--dr", `${(rnd(3) * 2 - 1) * 3}deg`);
-  el.style.setProperty("--dur", `${6 + rnd(4) * 4}s`);
-  el.style.setProperty("--delay", `${-rnd(5) * 8}s`);
+  el.className = "paper";
   el.innerHTML = (pending ? `<div class="sketching">sketching...</div>` : `<img alt="" src="${svgSrc(m.svg)}">`) +
     `<div>${escapeHtml((m.title || "").toLowerCase())}</div>`;
-  if (!pending) el.onclick = (e) => { if (!rw.moved) holdClose(m); };
-  canvas.appendChild(el);
+  const spot = openSpot();
+  const card = {
+    m, el, pending, x: spot.x, y: spot.y, vx: 0, vy: 0,
+    heading: Math.random() * Math.PI * 2, turn: 0, tilt: tilt(m.id), phase: Math.random() * 6,
+    remove() { el.remove(); rw.cards = rw.cards.filter((c) => c !== card); },
+  };
+  if (pending || fresh) {   // glide in from the right edge, like the original
+    card.x = rw.worldW + CARD_W; card.heading = Math.PI + (Math.random() - 0.5) * 0.6; card.vx = -40;
+  }
+  el.addEventListener("pointerdown", (e) => startCardDrag(e, card));
+  $("rw-canvas").appendChild(el);
+  rw.cards.push(card);
   $("rw-empty").hidden = true;
-  return el;
+  render(card);
+  startFloat();
+  return card;
+}
+
+function render(c) {
+  const sway = calm ? 0 : Math.sin(rw.t * 0.5 + c.phase) * 3;
+  c.el.style.transform = `translate(${c.x - CARD_W / 2 + rw.panX}px, ${c.y - CARD_H / 2 + rw.panY}px) rotate(${c.tilt + sway}deg)`;
+}
+
+function step(dt) {
+  rw.t += dt;
+  for (const c of rw.cards) {
+    if (c.dragging) continue;
+    // wander: the heading turns slowly and smoothly, never in a straight line for long
+    c.turn += (Math.random() - 0.5) * 1.2 * dt;
+    c.turn = Math.max(-0.35, Math.min(0.35, c.turn));
+    c.heading += c.turn * dt;
+    // steer back toward the middle when near an edge
+    const near = c.x < EDGE || c.x > rw.worldW - EDGE || c.y < EDGE || c.y > rw.worldH - EDGE;
+    if (near) {
+      const toward = Math.atan2(rw.worldH / 2 - c.y, rw.worldW / 2 - c.x);
+      const diff = Math.atan2(Math.sin(toward - c.heading), Math.cos(toward - c.heading));
+      c.heading += diff * 0.8 * dt;
+    }
+    const speed = calm ? 0 : SPEED;
+    c.vx += (Math.cos(c.heading) * speed - c.vx) * 0.5 * dt;
+    c.vy += (Math.sin(c.heading) * speed - c.vy) * 0.5 * dt;
+    // personal space: cards drift apart instead of stacking
+    for (const o of rw.cards) {
+      if (o === c) continue;
+      const dx = c.x - o.x, dy = c.y - o.y, d = Math.hypot(dx, dy) || 0.01;
+      if (d < PERSONAL_SPACE) {
+        const push = ((PERSONAL_SPACE - d) / PERSONAL_SPACE) * 60 * dt;
+        c.vx += (dx / d) * push; c.vy += (dy / d) * push;
+      }
+    }
+    c.x += c.vx * dt; c.y += c.vy * dt;
+    // soft walls
+    c.x = Math.max(CARD_W / 2, Math.min(rw.worldW - CARD_W / 2 + (c.pending || c.vx < -20 ? CARD_W * 2 : 0), c.x));
+    c.y = Math.max(CARD_H / 2, Math.min(rw.worldH - CARD_H / 2, c.y));
+  }
+  rw.cards.forEach(render);
+}
+
+function startFloat() {
+  if (rw.raf) return;
+  rw.last = performance.now();
+  const tick = (now) => {
+    if ($("rw").hidden || $("journal").hidden) { rw.raf = 0; return; }   // only while visible
+    step(Math.min(0.05, (now - rw.last) / 1000));
+    rw.last = now;
+    rw.raf = requestAnimationFrame(tick);
+  };
+  rw.raf = requestAnimationFrame(tick);
 }
 
 async function loadRestworld() {
-  const canvas = $("rw-canvas");
-  if (canvas.querySelector(".sketching")) return;   // a card is being drawn right now
-  canvas.innerHTML = "";
-  rw.moments = await api("/api/moments");
-  state.moments = rw.moments.length;
-  const box = $("rw").getBoundingClientRect();
-  rw.x = box.width / 2; rw.y = box.height / 2 - 40;
-  moveCanvas();
-  rw.moments.forEach((m, i) => placePaper(m, { index: i }));
-  $("rw-empty").hidden = rw.moments.length > 0;
+  if (rw.cards.some((c) => c.pending)) { startFloat(); return; }   // a card is being drawn right now
+  $("rw-canvas").innerHTML = "";
+  rw.cards = []; rw.panX = 0; rw.panY = 0;
+  const moments = await api("/api/moments");
+  state.moments = moments.length;
+  moments.forEach((m) => placePaper(m));
+  $("rw-empty").hidden = moments.length > 0;
 }
-function moveCanvas() { $("rw-canvas").style.transform = `translate(${rw.x}px, ${rw.y}px)`; }
 
-// drag to look around
+// Drag one card. A press that doesn't move is a tap: hold it close.
+function startCardDrag(e, card) {
+  e.stopPropagation(); e.preventDefault();
+  const start = { px: e.clientX, py: e.clientY, x: card.x, y: card.y, t: performance.now() };
+  let moved = false, last = { x: e.clientX, y: e.clientY, t: start.t }, vel = { x: 0, y: 0 };
+  card.dragging = true;
+  card.el.style.zIndex = ++rw.z;
+  card.el.classList.add("lifted");
+  const move = (ev) => {
+    const dx = ev.clientX - start.px, dy = ev.clientY - start.py;
+    if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+    card.x = start.x + dx; card.y = start.y + dy;
+    const now = performance.now(), dt = Math.max(1, now - last.t) / 1000;
+    vel = { x: (ev.clientX - last.x) / dt, y: (ev.clientY - last.y) / dt };
+    last = { x: ev.clientX, y: ev.clientY, t: now };
+    render(card);
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    card.dragging = false;
+    card.el.classList.remove("lifted");
+    if (!moved) { if (!card.pending) holdClose(card.m); return; }
+    // let go: it keeps a little of your flick, then settles back into drifting
+    const cap = 220, sp = Math.hypot(vel.x, vel.y), k = sp > cap ? cap / sp : 1;
+    card.vx = vel.x * k; card.vy = vel.y * k;
+    if (sp > 1) card.heading = Math.atan2(vel.y, vel.x);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+}
+
+// Drag empty space to look around (only matters once the world is bigger than the screen)
 (() => {
   const area = $("rw");
   let start = null;
   area.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".rw-hold")) return;
-    start = { px: e.clientX, py: e.clientY, x: rw.x, y: rw.y }; rw.moved = false;
+    if (e.target.closest(".paper")) return;
+    start = { px: e.clientX, py: e.clientY, x: rw.panX, y: rw.panY };
+    area.classList.add("dragging");
   });
   window.addEventListener("pointermove", (e) => {
     if (!start) return;
-    const dx = e.clientX - start.px, dy = e.clientY - start.py;
-    if (Math.abs(dx) + Math.abs(dy) > 4) { rw.moved = true; area.classList.add("dragging"); }
-    rw.x = start.x + dx; rw.y = start.y + dy; moveCanvas();
+    rw.panX = Math.min(0, Math.max(rw.W - rw.worldW, start.x + e.clientX - start.px));
+    rw.panY = Math.min(0, Math.max(rw.H - rw.worldH, start.y + e.clientY - start.py));
+    rw.cards.forEach(render);
   });
   window.addEventListener("pointerup", () => { start = null; area.classList.remove("dragging"); });
 })();

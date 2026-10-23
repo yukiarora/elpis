@@ -286,7 +286,7 @@ button.event:hover { color: #fff; }
 
 .rw { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; }
 .rw.dragging { cursor: grabbing; }
-.rw-canvas { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.rw-canvas { position: absolute; inset: 0; }
 .paper {
   position: absolute; width: 88px; padding: 7px 7px 9px; border-radius: 5px;
   background: #f6f3ee; color: #6d6878; box-shadow: 0 10px 24px rgba(30, 20, 50, 0.3);
@@ -296,16 +296,9 @@ button.event:hover { color: #fff; }
 .paper:hover { box-shadow: 0 16px 34px rgba(30, 20, 50, 0.4); }
 .paper img { width: 100%; aspect-ratio: 1; display: block; filter: invert(1) brightness(1.6) opacity(0.75); pointer-events: none; }
 .paper .sketching { width: 100%; aspect-ratio: 1; display: grid; place-items: center; color: #aaa4b4; font-size: 10px; animation: blink 1.4s infinite; }
-.rw-canvas .paper { transform: rotate(var(--rot)); animation: float var(--dur) ease-in-out var(--delay) infinite alternate; }
-/* cards drift like paper on water: a few px and a slight sway, each on its own timing */
-@keyframes float {
-  from { transform: translate(0, 0) rotate(var(--rot)); }
-  to { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--rot) + var(--dr))); }
-}
-/* a new card drops in first, then starts floating */
-.rw-canvas .paper.new { animation: drop .9s cubic-bezier(.2,.9,.3,1.2), float var(--dur) ease-in-out .9s infinite alternate; }
-@keyframes drop { from { transform: translate(140px, 60px) rotate(25deg) scale(.8); opacity: 0; } to { transform: rotate(var(--rot)); } }
-@media (prefers-reduced-motion: reduce) { .rw-canvas .paper, .rw-canvas .paper.new { animation: none; } }
+/* Cards are moved by JS (see "Restworld" in app.js); lifted while being dragged */
+.rw-canvas .paper { left: 0; top: 0; touch-action: none; will-change: transform; }
+.rw-canvas .paper.lifted { box-shadow: 0 22px 40px rgba(30, 20, 50, 0.45); cursor: grabbing; }
 .rw-empty { position: absolute; inset: 40% 30px auto; text-align: center; color: var(--text-dim); line-height: 1.5; }
 .rw-hint { position: absolute; bottom: 26px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,0.5); margin: 0; pointer-events: none; }
 /* Covers the whole screen (header included) with a blurred tint of the app gradient, so there's no hard edge */
