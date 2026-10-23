@@ -315,6 +315,8 @@ $("j-keep").onclick = async () => {
     state.moments += 1;
     placeholder.remove();
     placePaper(moment, { fresh: true });
+    $("j-text").value = "";   // ready for the next entry
+    $("j-keep").disabled = false;
     clearTransient();
     addEvent("✦ Kept in your Restworld", moment.title, openKept);
   } catch (e) {
