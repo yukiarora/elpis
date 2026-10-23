@@ -268,7 +268,7 @@ button.event:hover { color: #fff; }
 
 /* Breathing */
 .b-run { position: absolute; inset: 0; }
-.b-close { position: absolute; top: 128px; left: 20px; z-index: 3; width: 30px; height: 30px; }
+.b-close { position: absolute; top: 60px; left: 20px; z-index: 3; width: 30px; height: 30px; }
 .orb { position: absolute; left: 50%; top: 278px; width: 296px; height: 296px; margin-left: -148px; touch-action: none; cursor: grab; }
 .wave { position: absolute; left: 0; top: 278px; width: 393px; height: 300px; pointer-events: none; }
 .b-hint { position: absolute; top: 470px; left: 0; right: 0; text-align: center; font-size: 14.5px; font-weight: 600; color: #fff; transition: opacity .6s; pointer-events: none; }
