@@ -284,7 +284,7 @@ button.event:hover { color: #fff; }
 .keep:disabled { opacity: 0.6; }
 .j-foot { text-align: center; font-size: 12px; color: var(--text-dim); margin: 10px 0 0; }
 
-.rw { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; }
+.rw { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; isolation: isolate; }   /* card z-indexes stay inside, under the hold overlay */
 .rw.dragging { cursor: grabbing; }
 .rw-canvas { position: absolute; inset: 0; }
 .paper {

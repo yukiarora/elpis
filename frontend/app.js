@@ -92,7 +92,13 @@ function addEvent(label, detail, onClick) {
   if (onClick) el.onclick = onClick;
   messagesEl.appendChild(el);
 }
-const openKept = () => openJournal(null, "rw");
+// Deep link from a "Kept in your Restworld" note to that memory's single view
+const openKept = (momentId, title) => async () => {
+  await openJournal(null, "rw");
+  // older notes have no id saved, so fall back to the card's title
+  const card = rw.cards.find((c) => c.m.id === momentId) || rw.cards.find((c) => title && c.m.title === title);
+  if (card) holdClose(card.m);
+};
 function clearTransient() { messagesEl.querySelectorAll(".chips").forEach((el) => el.remove()); }
 
 // iMessage-style timestamps: "Today 9:41 AM", "Yesterday 9:41 AM", "Tuesday 9:41 AM", "Mon, Oct 13 at 9:41 AM".
@@ -168,7 +174,7 @@ async function loadState() {
       addElpis(m.content);
       if (m.meta?.safety) addSafetyCard(m.meta.safety);
     } else if (m.role === "event" && /^(She kept|Voice call ended|She did a breathing)/.test(m.content)) {
-      addEvent(...eventParts(m.content));
+      addEvent(...eventParts(m.content, m.meta));
     }
     // Suggestions + action survive refresh, but only for the latest Elpis message.
     if (i === s.messages.length - 1 && m.role === "assistant") renderAfter(m.meta || {});
@@ -177,8 +183,11 @@ async function loadState() {
   return s;
 }
 // Stored event text -> [label, detail, onClick]
-function eventParts(text) {
-  if (text.startsWith("She kept")) return ["✦ Kept in your Restworld", /"([^"]+)"/.exec(text)?.[1], openKept];
+function eventParts(text, meta = {}) {
+  if (text.startsWith("She kept")) {
+    const title = /"([^"]+)"/.exec(text)?.[1];
+    return ["✦ Kept in your Restworld", title, openKept(meta.moment_id, title)];
+  }
   if (text.startsWith("Voice call ended")) return ["Call ended", /\((.+?)\)/.exec(text)?.[1]];
   if (text.startsWith("She did a breathing")) return ["Breathing space", /for (.+?)\.?$/.exec(text)?.[1]];
   return [text];
@@ -283,21 +292,22 @@ document.querySelectorAll("#tools-menu button").forEach((b) => (b.onclick = () =
 const DEFAULT_PROMPT = "What's one small thing that felt like you today?";
 let journalPrompt = DEFAULT_PROMPT;
 
-function openJournal(prompt, tab = "write") {
+async function openJournal(prompt, tab = "write") {
   journalPrompt = prompt || DEFAULT_PROMPT;
   $("j-prompt").textContent = journalPrompt;
   $("j-text").value = "";
   $("j-keep").disabled = false; $("j-keep").textContent = "Keep this";
   show("journal");
-  setTab(tab);
+  const loading = setTab(tab);
   if (tab === "write") setTimeout(() => $("j-text").focus(), 200);
+  return loading;
 }
 function setTab(tab) {
   $("tab-write").classList.toggle("on", tab === "write");
   $("tab-rw").classList.toggle("on", tab === "rw");
   $("j-write").hidden = tab !== "write";
   $("rw").hidden = tab !== "rw";
-  if (tab === "rw") loadRestworld();
+  if (tab === "rw") return loadRestworld();
 }
 $("tab-write").onclick = () => setTab("write");
 $("tab-rw").onclick = () => setTab("rw");
@@ -318,7 +328,7 @@ $("j-keep").onclick = async () => {
     $("j-text").value = "";   // ready for the next entry
     $("j-keep").disabled = false;
     clearTransient();
-    addEvent("✦ Kept in your Restworld", moment.title, openKept);
+    addEvent("✦ Kept in your Restworld", moment.title, openKept(moment.id, moment.title));
   } catch (e) {
     placeholder.querySelector(".sketching").textContent = "couldn't sketch — try again";
     $("j-keep").disabled = false;
@@ -426,7 +436,7 @@ function startFloat() {
   rw.last = performance.now();
   const tick = (now) => {
     if ($("rw").hidden || $("journal").hidden) { rw.raf = 0; return; }   // only while visible
-    step(Math.min(0.05, (now - rw.last) / 1000));
+    if ($("rw-hold").hidden) step(Math.min(0.05, (now - rw.last) / 1000));   // still while a card is held close
     rw.last = now;
     rw.raf = requestAnimationFrame(tick);
   };

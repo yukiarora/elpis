@@ -276,7 +276,8 @@ def keep_moment(body: MomentIn):
     except Exception:
         log.exception("Sketch generation failed; using fallback sketch")
     moment_id = db.add_moment(title, body.prompt, text, svg or FALLBACK_SVG)
-    db.add_message("event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"')
+    db.add_message("event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"',
+                   meta={"moment_id": moment_id})
     return next(m for m in db.moments() if m["id"] == moment_id)
 
 
