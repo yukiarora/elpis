@@ -705,80 +705,239 @@ function holdClose(m) {
   };
 }
 
-// ---------- Breathe ----------
+// ---------- Breathe: "Drift" ----------
+// An intro card (what it's for), then a particle orb in a starry space. A wave runs across it and a dot rides
+// the wave: up to breathe in, down to breathe out. The words fill in letter by letter as the seconds pass,
+// and a soft chord rings at the start of each phase and fades with it.
 
-const IN = 4, OUT = 6, CYCLE = IN + OUT;   // seconds
-const br = { running: false, start: 0, pausedAt: 0, elapsed: 0, minutes: 3, sound: "waves", muted: false, raf: 0 };
-const canvas = $("wave"), ctx = canvas.getContext("2d");
+const IN = 5, OUT = 5, CYCLE = IN + OUT;   // seconds
+const LENGTHS = [5, 10, 20];               // breaths per session
+const br = { running: false, start: 0, elapsed: 0, breaths: 10, muted: false, raf: 0, phase: null,
+  yaw: 0, pitch: -0.35, spin: 0.12, dragged: false };
 const dpr = window.devicePixelRatio || 1;
-canvas.width = 393 * dpr; canvas.height = 300 * dpr; ctx.scale(dpr, dpr);
+function fit(c, w, h) { c.width = w * dpr; c.height = h * dpr; const x = c.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); return x; }
 
 // level(t): 0 = empty (bottom), 1 = full (top). Smooth rise over IN seconds, smooth fall over OUT.
 function level(t) {
   const p = ((t % CYCLE) + CYCLE) % CYCLE;
   return p < IN ? (1 - Math.cos(Math.PI * p / IN)) / 2 : (1 + Math.cos(Math.PI * (p - IN) / OUT)) / 2;
 }
-function drawWave(t) {
-  const W = 393, top = 40, bottom = 230;
-  ctx.clearRect(0, 0, W, 300);
+
+// Stars: a fixed scatter of faint dots
+function drawStars() {
+  const c = $("stars"), w = c.offsetWidth || 393, h = c.offsetHeight || 852, x = fit(c, w, h);
+  for (let i = 0; i < 160; i++) {
+    x.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.55})`;
+    const r = Math.random() < 0.9 ? 0.6 : 1.2;
+    x.fillRect(Math.random() * w, Math.random() * h, r, r);
+  }
+}
+
+// The orb: a few thousand particles in a sphere, coloured in drifting bands of lilac, violet and cyan.
+const ORB = (() => {
+  const N = 3600, pts = [];
+  for (let i = 0; i < N; i++) {
+    let x, y, z, d;
+    do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; d = x * x + y * y + z * z; } while (d > 1 || d < 0.04);
+    const shell = 0.7 + 0.3 * Math.cbrt(Math.random()), k = shell / Math.sqrt(d);   // most particles near the surface
+    x *= k; y *= k; z *= k;
+    const band = Math.sin(1.9 * x + 1.3) * Math.sin(1.7 * y + 0.4) + 0.75 * Math.sin(2.2 * z - 1.1 + 1.3 * y);   // broad, soft bands
+    pts.push({ x, y, z, band, tw: Math.random() * 6 });
+  }
+  return pts;
+})();
+
+function drawOrb(ctx, size, t, { breath = 0, glow = 0, yaw = br.yaw, pitch = br.pitch } = {}) {
+  const c = size / 2, R = size * 0.4 * (1 + 0.05 * breath);
+  ctx.clearRect(0, 0, size, size);
+  const halo = ctx.createRadialGradient(c, c, R * 0.2, c, c, R * 1.25);
+  halo.addColorStop(0, "rgba(60, 50, 110, 0.55)"); halo.addColorStop(0.8, "rgba(90, 70, 200, 0.18)"); halo.addColorStop(1, "rgba(120, 100, 230, 0)");
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(c, c, R * 1.25, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(25, 22, 40, 0.55)"; ctx.beginPath(); ctx.arc(c, c, R * 1.01, 0, Math.PI * 2); ctx.fill();   // the sphere's dark body
+  ctx.globalCompositeOperation = "lighter";
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const dot = Math.max(1, size / 200);
+  for (const p of ORB) {
+    const x1 = p.x * cy + p.z * sy, z1 = -p.x * sy + p.z * cy;
+    const y2 = p.y * cp - z1 * sp, z2 = p.y * sp + z1 * cp;
+    const depth = (z2 + 1) / 2, twinkle = 0.85 + 0.15 * Math.sin(t * 1.3 + p.tw);
+    let r, g, b, a;
+    if (p.band > 1.05) { r = 90; g = 240; b = 225; a = 1; }            // cyan cores
+    else if (p.band > 0.3) { r = 120; g = 95; b = 255; a = 0.95; }     // violet bands
+    else { r = 165; g = 160; b = 190; a = 0.42; }                       // speckled grey-lilac body
+    if (glow && y2 > 0.3 && Math.abs(x1) < 0.85) {                     // breathing out: cyan light pools at the bottom
+      const k = glow * Math.min(1, (y2 - 0.3) / 0.3);
+      r += (90 - r) * k; g += (245 - g) * k; b += (225 - b) * k; a = a + (1 - a) * k;
+    }
+    ctx.fillStyle = `rgba(${r | 0},${g | 0},${b | 0},${(a * (0.3 + 0.7 * depth) * twinkle).toFixed(3)})`;
+    ctx.fillRect(c + x1 * R, c + y2 * R, dot, dot);
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+
+// The wave: brighter behind the dot (time already breathed), softer ahead, fading at both edges.
+function drawWave(ctx, W, H, t) {
+  const top = 55, bottom = 245, mid = W / 2;
+  ctx.clearRect(0, 0, W, H);
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, "rgba(255,255,255,0)"); grad.addColorStop(0.18, "rgba(255,255,255,0.75)");
+  grad.addColorStop(0.5, "rgba(255,255,255,0.85)"); grad.addColorStop(0.505, "rgba(255,255,255,0.32)");
+  grad.addColorStop(0.85, "rgba(255,255,255,0.28)"); grad.addColorStop(1, "rgba(255,255,255,0)");
   ctx.beginPath();
-  for (let x = -10; x <= W + 10; x += 4) {
-    const y = bottom - level(t + (x - W / 2) / W * CYCLE) * (bottom - top);
+  for (let x = -10; x <= W + 10; x += 3) {
+    const y = bottom - level(t + (x - mid) / W * CYCLE * 0.9) * (bottom - top);
     x < -5 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
-  ctx.strokeStyle = "rgba(220, 215, 235, 0.55)"; ctx.lineWidth = 16; ctx.lineCap = "round"; ctx.stroke();
+  ctx.strokeStyle = grad; ctx.lineWidth = 9; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
   const y = bottom - level(t) * (bottom - top);
-  ctx.beginPath(); ctx.arc(W / 2, y, 15, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.shadowColor = "rgba(255,255,255,0.8)"; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(mid, y, 8, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.shadowBlur = 0;
 }
-function frame() {
-  const t = br.elapsed + (br.running ? (performance.now() - br.start) / 1000 : 0);
-  drawWave(t);
-  $("breathe-label").textContent = (t % CYCLE) < IN ? "Breathe In" : "Breathe Out";
-  if (t >= br.minutes * 60) { finishBreathe(t); return; }
-  br.raf = requestAnimationFrame(frame);
+
+// Sound: at each phase a soft chord rings and fades over the phase, like the reference.
+let audioCtx = null, chimes = [];
+const CHORDS = { in: [164.81, 220, 440, 659.25], out: [196, 261.63, 392, 587.33, 783.99] };
+function chime(kind, seconds) {
+  if (br.muted) return;
+  audioCtx = audioCtx || new AudioContext();
+  const ac = audioCtx, now = ac.currentTime, end = now + seconds + 0.6;
+  const master = ac.createGain(), lp = ac.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.value = 2600;
+  master.gain.setValueAtTime(0.0001, now);
+  master.gain.exponentialRampToValueAtTime(0.2, now + 0.05);
+  master.gain.exponentialRampToValueAtTime(0.0006, end);
+  master.connect(lp).connect(ac.destination);
+  CHORDS[kind].forEach((f, i) => {
+    for (const [type, detune, vol] of [["sine", 0, 1], ["triangle", 4, 0.25]]) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.value = f; o.detune.value = detune; g.gain.value = vol / (i + 1.6);
+      o.connect(g).connect(master); o.start(now); o.stop(end);
+      chimes.push(o);
+    }
+  });
+  chimes.push(master);
 }
+function hush() {
+  chimes.forEach((n) => { try { n.stop ? n.stop() : n.disconnect(); } catch {} });
+  chimes = [];
+}
+
+// Intro art: the orb turning slowly behind the play button, and a tiny one in the session row
+function animateIntro() {
+  const art = fit($("orb-art"), 240, 240), thumb = fit($("orb-thumb"), 48, 48), t0 = performance.now();
+  const loop = (now) => {
+    if ($("breathe").hidden || $("b-intro").hidden) return;
+    const t = (now - t0) / 1000;
+    drawOrb(art, 240, t, { yaw: t * 0.15 });
+    drawOrb(thumb, 48, t, { yaw: t * 0.15 });
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+
+const orbCtx = () => br.orbCtx || (br.orbCtx = fit($("orb"), 300, 300));
+const waveCtx = () => br.waveCtx || (br.waveCtx = fit($("wave"), 393, 300));
+const elapsed = () => br.elapsed + (br.running ? (performance.now() - br.start) / 1000 : 0);
+
+function runLoop() {
+  let last = performance.now();
+  const loop = (now) => {
+    if ($("breathe").hidden || $("b-run").hidden) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!br.dragging) br.yaw += br.spin * dt;
+    const t = elapsed(), p = ((t % CYCLE) + CYCLE) % CYCLE, inhale = p < IN;
+    const progress = inhale ? p / IN : (p - IN) / OUT;
+    const glow = br.running && !inhale ? Math.sin(Math.min(1, progress * 1.4) * Math.PI / 2) : 0;
+    drawOrb(orbCtx(), 300, now / 1000, { breath: br.running ? level(t) : 0, glow });
+    if (br.running || br.elapsed > 0) {
+      drawWave(waveCtx(), 393, 300, t);
+      const label = $("breathe-label");
+      const phase = inhale ? "in" : "out";
+      if (br.running && phase !== br.phase) { br.phase = phase; chime(phase, phase === "in" ? IN : OUT); }
+      label.textContent = inhale ? "Breathe In" : "Breathe Out";
+      label.style.setProperty("--p", progress.toFixed(3));
+      const done = Math.min(br.breaths, Math.floor(t / CYCLE) + 1);
+      $("b-count").textContent = `${done}/${br.breaths}`;
+      if (t >= br.breaths * CYCLE) { finishBreathe(t); return; }
+    }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+
 function setPlayIcon(playing) {
   $("play-icon").innerHTML = playing
     ? `<rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/>`
     : `<path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"/>`;
   $("breathe-play").setAttribute("aria-label", playing ? "Pause" : "Start");
 }
+function lengthLabel() {
+  const mins = Math.max(1, Math.round(br.breaths * CYCLE / 60));
+  $("b-length").textContent = `${br.breaths} breaths · about ${mins} min`;
+}
+
 function openBreathe() {
   show("breathe");
-  Object.assign(br, { running: false, elapsed: 0 });
+  hush();
+  Object.assign(br, { running: false, elapsed: 0, phase: null });
   $("breathe").classList.remove("running");
-  $("breathe-done").hidden = true;
-  setPlayIcon(false);
-  cancelAnimationFrame(br.raf);
-  drawWave(0);
+  $("b-intro").hidden = false; $("b-run").hidden = true; $("breathe-done").hidden = true;
+  $("b-about-text").hidden = true;
+  lengthLabel();
+  drawStars();
+  animateIntro();
 }
+function enterRun() {
+  $("b-intro").hidden = true; $("b-run").hidden = false;
+  $("breathe-label").textContent = ""; $("b-count").textContent = "";
+  waveCtx().clearRect(0, 0, 393, 300);
+  $("b-hint").style.opacity = 1;
+  setPlayIcon(false);
+  runLoop();
+}
+$("b-start").onclick = enterRun;
+$("b-art-play").onclick = enterRun;
+$("b-about").onclick = () => ($("b-about-text").hidden = !$("b-about-text").hidden);
+$("b-length-btn").onclick = () => { br.breaths = LENGTHS[(LENGTHS.indexOf(br.breaths) + 1) % LENGTHS.length]; lengthLabel(); };
+$("b-back").onclick = () => { show("chat"); scrollDown(); };
+
 $("breathe-play").onclick = () => {
   if (br.running) {
-    br.elapsed += (performance.now() - br.start) / 1000; br.running = false;
-    cancelAnimationFrame(br.raf); stopSound(); setPlayIcon(false);
+    br.elapsed = elapsed(); br.running = false; hush();
+    $("breathe").classList.remove("running"); setPlayIcon(false);
   } else {
-    br.start = performance.now(); br.running = true;
+    audioCtx?.resume?.();
+    br.start = performance.now(); br.running = true; br.phase = null;
     $("breathe").classList.add("running"); setPlayIcon(true);
-    if (!br.muted) playSound(br.sound);
-    frame();
+    $("b-hint").style.opacity = 0;
   }
-};
-$("breathe-timer").onclick = () => {
-  const opts = [1, 3, 5, 10];
-  br.minutes = opts[(opts.indexOf(br.minutes) + 1) % opts.length];
-  $("breathe-mins").textContent = `${br.minutes} min`;
 };
 $("breathe-mute").onclick = () => {
   br.muted = !br.muted;
   $("mute-wave").style.opacity = br.muted ? 0.2 : 1;
-  if (br.muted) stopSound(); else if (br.running) playSound(br.sound);
+  $("breathe-mute").setAttribute("aria-label", br.muted ? "Sound off" : "Sound on");
+  if (br.muted) hush();
 };
-document.querySelectorAll(".sounds button").forEach((b) => (b.onclick = () => {
-  document.querySelectorAll(".sounds button").forEach((x) => x.classList.toggle("selected", x === b));
-  br.sound = b.dataset.sound; $("sound-name").textContent = b.querySelector("span").textContent;
-}));
+
+// drag to rotate the orb
+(() => {
+  const c = $("orb");
+  let last = null;
+  c.addEventListener("pointerdown", (e) => { last = [e.clientX, e.clientY]; br.dragging = true; c.setPointerCapture(e.pointerId); $("b-hint").style.opacity = 0; });
+  c.addEventListener("pointermove", (e) => {
+    if (!last) return;
+    br.yaw += (e.clientX - last[0]) * 0.01;
+    br.pitch = Math.max(-1.2, Math.min(1.2, br.pitch + (e.clientY - last[1]) * 0.01));
+    last = [e.clientX, e.clientY];
+  });
+  const up = () => { last = null; br.dragging = false; };
+  c.addEventListener("pointerup", up); c.addEventListener("pointercancel", up);
+})();
+
 function finishBreathe(t) {
-  cancelAnimationFrame(br.raf); stopSound(); br.running = false;
+  br.running = false; hush();
+  $("breathe").classList.remove("running");
   if (t > 15) {
     const m = Math.floor(t / 60), s = Math.round(t % 60);
     const dur = [m && `${m} min`, s && `${s} sec`].filter(Boolean).join(" ");
@@ -789,54 +948,8 @@ function finishBreathe(t) {
     show("chat");
   }
 }
-$("breathe-close").onclick = () => {
-  const t = br.elapsed + (br.running ? (performance.now() - br.start) / 1000 : 0);
-  finishBreathe(t);
-};
+$("breathe-close").onclick = () => finishBreathe(elapsed());
 $("breathe-back").onclick = () => { show("chat"); scrollDown(); };
-
-// Ambient sound, synthesised so there are no audio files to ship.
-let audioCtx = null, soundNodes = [];
-function noiseBuffer(ac, brown) {
-  const len = ac.sampleRate * 4, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < len; i++) {
-    const w = Math.random() * 2 - 1;
-    d[i] = brown ? (last = (last + 0.02 * w) / 1.02) * 3.5 : w;
-  }
-  return buf;
-}
-function playSound(kind) {
-  stopSound();
-  audioCtx = audioCtx || new AudioContext();
-  const ac = audioCtx, master = ac.createGain();
-  master.gain.value = 0.0001; master.connect(ac.destination);
-  master.gain.exponentialRampToValueAtTime(kind === "music" ? 0.08 : 0.35, ac.currentTime + 2);
-  soundNodes = [master];
-  if (kind === "music") {
-    [220, 277.18, 329.63, 415.3].forEach((f, i) => {
-      const o = ac.createOscillator(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
-      o.type = "sine"; o.frequency.value = f; g.gain.value = 0.25;
-      lfo.frequency.value = 0.05 + i * 0.03; lg.gain.value = 0.2; lfo.connect(lg).connect(g.gain);
-      o.connect(g).connect(master); o.start(); lfo.start(); soundNodes.push(o, lfo);
-    });
-  } else {
-    const src = ac.createBufferSource(), filter = ac.createBiquadFilter();
-    src.buffer = noiseBuffer(ac, kind === "waves"); src.loop = true;
-    filter.type = kind === "waves" ? "lowpass" : "highpass";
-    filter.frequency.value = kind === "waves" ? 600 : 1200;
-    src.connect(filter).connect(master);
-    if (kind === "waves") {   // swell in time with a slow sea
-      const lfo = ac.createOscillator(), lg = ac.createGain();
-      lfo.frequency.value = 1 / CYCLE; lg.gain.value = 0.25; lfo.connect(lg).connect(master.gain); lfo.start(); soundNodes.push(lfo);
-    }
-    src.start(); soundNodes.push(src);
-  }
-}
-function stopSound() {
-  soundNodes.forEach((n) => { try { n.stop?.(); n.disconnect(); } catch {} });
-  soundNodes = [];
-}
 
 // ---------- Call ----------
 

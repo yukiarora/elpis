@@ -234,41 +234,59 @@ button.event:hover { color: #fff; }
 .round.end { background: var(--end-red); color: #fff; }
 
 /* ---------- Breathe ---------- */
-.breathe { align-items: center; }
-.breathe .close { position: absolute; top: 56px; left: 14px; z-index: 2; }
-#wave { position: absolute; top: 230px; left: 0; width: 393px; height: 300px; }
-.breathe-label { position: absolute; top: 523px; font-size: 20px; font-weight: 700; color: rgba(255,255,255,0.55); transition: opacity .6s; }
-.sounds { position: absolute; top: 536px; display: flex; gap: 22px; align-items: center; }
-.sounds button {
-  width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center;
-  border: 3px solid rgba(255,255,255,0.55); background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.8);
+/* Night space in Elpis colours: deep violet-black with a soft purple glow, stars on a canvas */
+.breathe { background: radial-gradient(120% 70% at 50% 35%, #2a2347 0%, #110e1f 55%, #07060d 100%); align-items: stretch; }
+.breathe .stars { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Intro card */
+.b-intro { position: relative; flex: 1; display: flex; flex-direction: column; }
+.b-top { margin-top: 54px; height: 41px; padding: 0 16px; display: flex; align-items: center; }
+.b-art { position: relative; height: 270px; display: grid; place-items: center; }
+.b-art canvas { width: 240px; height: 240px; }
+.b-art-play { position: absolute; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: rgba(20, 14, 45, 0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.b-sheet { flex: 1; margin-top: -10px; padding: 26px 20px 34px; border-radius: 28px 28px 0 0; text-align: center;
+  background: linear-gradient(180deg, rgba(42, 34, 76, 0.92), rgba(24, 19, 44, 0.96)); display: flex; flex-direction: column; align-items: center; }
+.b-sheet h2 { margin: 0 0 8px; font-size: 30px; font-weight: 600; }
+.b-desc { margin: 0 12px 10px; font-size: 16px; line-height: 1.35; color: rgba(255, 255, 255, 0.8); }
+.b-about { font-size: 14px; color: #c9bdf0; text-decoration: underline; }
+.b-about-text { margin: 10px 4px 0; font-size: 14px; line-height: 1.45; color: rgba(255, 255, 255, 0.72); text-align: left; }
+.b-tags { display: flex; gap: 8px; margin: 14px 0 18px; }
+.b-tags span { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 12px; background: #8f7fc4; color: #fff; }
+.b-session { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.06); text-align: left; }
+.b-session canvas { width: 48px; height: 48px; border-radius: 10px; background: #07060d; }
+.b-session div { flex: 1; }
+.b-session b { display: block; font-size: 16px; font-weight: 600; }
+.b-session small { font-size: 13px; color: rgba(255, 255, 255, 0.65); }
+.b-length-btn { font-size: 13px; color: #c9bdf0; padding: 6px 10px; }
+.b-start { margin-top: auto; width: 100%; height: 50px; border-radius: 14px; background: #8f7fc4; color: #fff; font-size: 17px; font-weight: 600; }
+
+/* Breathing: orb + wave */
+.b-run { position: absolute; inset: 0; }
+.b-close { position: absolute; top: 58px; left: 16px; z-index: 3; }
+.orb { position: absolute; left: 50%; top: 170px; width: 300px; height: 300px; margin-left: -150px; touch-action: none; cursor: grab; }
+.wave { position: absolute; left: 0; top: 170px; width: 393px; height: 300px; pointer-events: none; }
+.b-hint { position: absolute; top: 480px; left: 0; right: 0; text-align: center; font-size: 13px; color: rgba(255, 255, 255, 0.6); transition: opacity .6s; }
+/* the words fill in letter by letter as the seconds pass (--p is 0..1) */
+.breathe-label {
+  position: absolute; top: 500px; left: 0; right: 0; text-align: center; font-size: 26px; font-weight: 600; letter-spacing: 0.2px;
+  background: linear-gradient(90deg, #fff 0, #fff calc(var(--p, 0) * 100%), rgba(255, 255, 255, 0.32) calc(var(--p, 0) * 100% + 6%));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  width: max-content; margin: 0 auto; transition: opacity .5s;
 }
-.sounds button span { display: none; }
-.sounds button.selected { width: 62px; height: 62px; border-color: #fff; color: #fff; }
-.sound-name { position: absolute; top: 612px; font-size: 13px; font-weight: 600; }
-.breathe.running .sounds, .breathe.running .sound-name { display: none; }
-.breathe:not(.running) .breathe-label { opacity: 0; }
-.breathe-controls { position: absolute; top: 670px; left: 60px; right: 60px; display: flex; justify-content: space-between; align-items: center; }
-.breathe-controls .icon-btn { width: 50px; display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
-.round.play { width: 104px; height: 104px; background: #fff; color: #4d4466; }
+.b-controls { position: absolute; top: 680px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 34px; }
+.b-side { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, 0.1); }
+.b-count { width: 44px; text-align: center; font-size: 13px; color: rgba(255, 255, 255, 0.65); }
+.round.play { width: 72px; height: 72px; background: #f5f2fa; color: #1b1630; transition: background .3s, transform .3s; }
+.breathe.running .round.play { background: rgba(255, 255, 255, 0.18); color: #fff; transform: scale(0.8); }
+.breathe.running .b-side { opacity: 0.6; }
 .breathe-done {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 0 50px; background: linear-gradient(180deg, var(--grad-top), var(--grad-bottom));
+  text-align: center; padding: 0 50px; background: radial-gradient(120% 70% at 50% 35%, #2a2347 0%, #110e1f 55%, #07060d 100%);
 }
 .breathe-done img { width: 90px; margin-bottom: 26px; animation: bob 6s ease-in-out infinite; }
 .breathe-done .lead { font-size: 24px; margin: 0 0 10px; }
 .breathe-done p { color: var(--text-dim); margin: 0 0 28px; }
-
-/* ---------- + menu ---------- */
-.menu {
-  position: absolute; top: 88px; right: 14px; z-index: 30; width: 200px; padding: 6px;
-  border-radius: 16px; background: rgba(72, 60, 104, 0.92); backdrop-filter: blur(20px);
-  box-shadow: 0 12px 40px rgba(20, 10, 40, 0.35); animation: fade .15s ease;
-}
-@keyframes fade { from { opacity: 0; transform: translateY(-4px); } }
-.menu button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-size: 14px; text-align: left; }
-.menu button:hover { background: rgba(255, 255, 255, 0.1); }
-.menu svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
 /* ---------- Journal: Write | Restworld ---------- */
 .j-top { margin-top: 54px; height: 41px; flex: none; padding: 0 16px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }

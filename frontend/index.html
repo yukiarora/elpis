@@ -90,24 +90,47 @@
     </div>
   </section>
 
-  <!-- Breathe -->
+  <!-- Breathe: an intro card, then a particle orb in a starry space with a wave to follow -->
   <section class="screen breathe" id="breathe" hidden>
-    <button class="icon-btn close" id="breathe-close" aria-label="Close">
-      <svg viewBox="0 0 24 24" width="26" height="26"><path d="M5 5l14 14M19 5 5 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    </button>
-    <canvas id="wave" width="393" height="300"></canvas>
-    <div class="breathe-label" id="breathe-label">Breathe In</div>
-    <div class="sounds" id="sounds">
-      <button data-sound="music" aria-label="Music"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M9 17.5a2.5 2.5 0 1 1-2-2.45V5.8l10-2.3v11.95a2.5 2.5 0 1 1-2-2.45V7.1l-6 1.4v9Z"/></svg><span>Music</span></button>
-      <button data-sound="waves" class="selected" aria-label="Waves"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0M3 12.5c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0M3 17c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/></svg><span>Waves</span></button>
-      <button data-sound="rain" aria-label="Rain"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 6l-1.5 3M12 5l-1.5 3M17 6l-1.5 3M8.5 12 7 15M13.5 11 12 14M18 12l-1.5 3M10 17l-1.2 2.5M15 17l-1.2 2.5"/></svg><span>Rain</span></button>
+    <canvas class="stars" id="stars"></canvas>
+
+    <div class="b-intro" id="b-intro">
+      <header class="b-top">
+        <button class="icon-btn" id="b-back" aria-label="Back to Elpis"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </header>
+      <div class="b-art"><canvas id="orb-art" width="240" height="240"></canvas>
+        <button class="b-art-play" id="b-art-play" aria-label="Start"><svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"/></svg></button>
+      </div>
+      <div class="b-sheet">
+        <h2>Drift</h2>
+        <p class="b-desc">A slow wave to follow with your breath, while soft light drifts in the dark.</p>
+        <button class="b-about" id="b-about">ⓘ About this exercise</button>
+        <p class="b-about-text" id="b-about-text" hidden>Breathing slowly, about five seconds in and five seconds out, gently tells your body it's safe. It can quiet a racing mind, ease tight shoulders and give you a little energy back. There's no right way to do it. Just follow the dot.</p>
+        <div class="b-tags"><span>Relax</span><span>Recharge</span></div>
+        <div class="b-session">
+          <canvas id="orb-thumb" width="48" height="48"></canvas>
+          <div><b>Drift</b><small id="b-length">10 breaths · about 2 min</small></div>
+          <button class="b-length-btn" id="b-length-btn" aria-label="Change length">Change</button>
+        </div>
+        <button class="b-start" id="b-start">Start</button>
+      </div>
     </div>
-    <div class="sound-name" id="sound-name">Waves</div>
-    <div class="breathe-controls">
-      <button class="icon-btn" id="breathe-timer" aria-label="Session length"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 13 8.5 9.5M10 2.5h4"/></svg><span id="breathe-mins">3 min</span></button>
-      <button class="round play" id="breathe-play" aria-label="Pause"><svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor" id="play-icon"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></button>
-      <button class="icon-btn" id="breathe-mute" aria-label="Mute sound"><svg viewBox="0 0 32 32" width="32" height="32" fill="currentColor"><path d="M4 12h5l7-6v20l-7-6H4z"/><path id="mute-wave" d="M20 11.5a6 6 0 0 1 0 9" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
+
+    <div class="b-run" id="b-run" hidden>
+      <button class="icon-btn b-close" id="breathe-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <canvas id="orb" class="orb"></canvas>
+      <canvas id="wave" class="wave"></canvas>
+      <div class="b-hint" id="b-hint">drag to rotate</div>
+      <div class="breathe-label" id="breathe-label" aria-live="polite"></div>
+      <div class="b-controls">
+        <button class="b-side" id="breathe-mute" aria-label="Sound on"><svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor"><path d="M4 12h5l7-6v20l-7-6H4z"/><path id="mute-wave" d="M20 11.5a6 6 0 0 1 0 9" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
+        <button class="round play" id="breathe-play" aria-label="Start"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor" id="play-icon"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"/></svg></button>
+        <span class="b-count" id="b-count"></span>
+      </div>
     </div>
+
     <div class="breathe-done" id="breathe-done" hidden>
       <img src="/assets/call-icon.svg" alt="">
       <p class="lead">Your breath is your own again.</p>

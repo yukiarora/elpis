@@ -57,7 +57,7 @@ frontend/
 - **Spark of Joy → journaling.** Elpis notices real joy ("I'm so happy, I want to paint") and offers a contextual journal question. "Keep this memory" turns her answer into a sketch in her **Restworld**.
 - **Low days.** Elpis can gently point her back to moments she kept, offer breathing, or just stay and talk.
 - **Calls.** Speak with Elpis. Replies stream into a fixed-height area so the controls never move. Everything said on a call flows back into the chat.
-- **Breathe.** A guided wave: 4 seconds in, 6 seconds out, with synthesized waves, rain or music.
+- **Breathe ("Drift").** An intro card says what it's for (Relax · Recharge), then a particle orb drifts in a starry space while a dot rides a wave: 5 seconds in, 5 out. The words fill in letter by letter as the seconds pass, a soft chord rings at each phase, and you can drag the orb to rotate it.
 - **Safety.** A regex guardrail flags suicide or self-harm and domestic-violence language before the model replies, and always shows US crisis resources (988, Crisis Text Line, DV Hotline, 911). The model is also instructed to respond with care and set `action: "crisis"`.
 
 ### Where the personality came from
