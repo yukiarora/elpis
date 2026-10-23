@@ -331,7 +331,7 @@ const rw = { x: 0, y: 0, moments: [] };
 // Stable, scattered spot for each card, spiralling out from the middle.
 function spot(i) {
   if (i === 0) return { x: 0, y: 0 };
-  const angle = i * 2.4, r = 120 + 34 * Math.sqrt(i) * 3;
+  const angle = i * 2.4, r = 70 + 48 * Math.sqrt(i);
   return { x: Math.cos(angle) * r, y: Math.sin(angle) * r * 0.9 };
 }
 function tilt(id) { const n = (typeof id === "number" ? id : 7) * 9301 + 49297; return ((n % 233280) / 233280) * 16 - 8; }
@@ -342,8 +342,15 @@ function placePaper(m, { pending, fresh, index } = {}) {
   const { x, y } = spot(i);
   const el = document.createElement("div");
   el.className = "paper" + (fresh || pending ? " new" : "");
-  el.style.left = `${x - 64}px`; el.style.top = `${y - 80}px`;
-  el.style.transform = `rotate(${tilt(m.id)}deg)`;
+  el.style.left = `${x - 44}px`; el.style.top = `${y - 56}px`;
+  // Each card floats on its own slow, out-of-sync drift (seeded by id so it's stable across visits)
+  const seed = typeof m.id === "number" ? m.id : 7, rnd = (k) => ((seed * 9301 + k * 49297) % 233280) / 233280;
+  el.style.setProperty("--rot", `${tilt(m.id)}deg`);
+  el.style.setProperty("--dx", `${(rnd(1) * 2 - 1) * 10}px`);
+  el.style.setProperty("--dy", `${-6 - rnd(2) * 8}px`);
+  el.style.setProperty("--dr", `${(rnd(3) * 2 - 1) * 3}deg`);
+  el.style.setProperty("--dur", `${6 + rnd(4) * 4}s`);
+  el.style.setProperty("--delay", `${-rnd(5) * 8}s`);
   el.innerHTML = (pending ? `<div class="sketching">sketching...</div>` : `<img alt="" src="${svgSrc(m.svg)}">`) +
     `<div>${escapeHtml((m.title || "").toLowerCase())}</div>`;
   if (!pending) el.onclick = (e) => { if (!rw.moved) holdClose(m); };
@@ -391,11 +398,16 @@ function holdClose(m) {
     <button class="let-go">let this one go</button></div>`;
   hold.hidden = false;
   hold.onclick = (e) => { if (e.target === hold) hold.hidden = true; };
-  hold.querySelector(".let-go").onclick = async () => {
-    if (!confirm("Remove this moment from your Restworld?")) return;
-    await api(`/api/moments/${m.id}`, null, "DELETE");
-    hold.hidden = true;
-    loadRestworld();
+  // Ask inside the card, not with a browser popup
+  hold.querySelector(".let-go").onclick = (e) => {
+    e.currentTarget.outerHTML = `<div class="confirm-go"><span>Let this one go?</span>
+      <button class="keep-it">Keep it</button><button class="go">Let go</button></div>`;
+    hold.querySelector(".keep-it").onclick = () => holdClose(m);
+    hold.querySelector(".go").onclick = async () => {
+      await api(`/api/moments/${m.id}`, null, "DELETE");
+      hold.hidden = true;
+      loadRestworld();
+    };
   };
 }
 
