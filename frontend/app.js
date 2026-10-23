@@ -475,14 +475,16 @@ function openStudio() {
       const fillOpacity = shape.getAttribute("fill-opacity");
       shape.style.strokeDasharray = len; shape.style.strokeDashoffset = len;
       if (fillOpacity) shape.style.fillOpacity = 0;
-      const dur = Math.max(350, Math.min(1600, len * 7)), t0 = performance.now();
+      // a hand eases into and out of each stroke, at its own pace, then lifts briefly
+      const dur = Math.max(420, Math.min(1700, len * 8 * (0.85 + Math.random() * 0.3))), t0 = performance.now();
+      const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
       const tick = (now) => {
-        const p = Math.min(1, (now - t0) / dur);
+        const p = ease(Math.min(1, (now - t0) / dur));
         shape.style.strokeDashoffset = len * (1 - p);
         tipAt(...toSheet(shape.getPointAtLength(len * p)));
-        if (p < 1) return requestAnimationFrame(tick);
+        if (now - t0 < dur) return requestAnimationFrame(tick);
         if (fillOpacity) { shape.style.transition = "fill-opacity .5s"; shape.style.fillOpacity = fillOpacity; }
-        resolve();
+        setTimeout(resolve, 120 + Math.random() * 220);   // pen lifts before the next stroke
       };
       requestAnimationFrame(tick);
     });
