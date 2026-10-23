@@ -739,7 +739,7 @@ const ORB = (() => {
   for (let i = 0; i < N; i++) {
     let x, y, z, d;
     do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; d = x * x + y * y + z * z; } while (d > 1 || d < 0.04);
-    const shell = 0.7 + 0.3 * Math.cbrt(Math.random()), k = shell / Math.sqrt(d);   // most particles near the surface
+    const shell = 0.82 + 0.18 * Math.cbrt(Math.random()), k = shell / Math.sqrt(d);   // most particles near the surface
     x *= k; y *= k; z *= k;
     const band = Math.sin(1.9 * x + 1.3) * Math.sin(1.7 * y + 0.4) + 0.75 * Math.sin(2.2 * z - 1.1 + 1.3 * y);   // broad, soft bands
     pts.push({ x, y, z, band, tw: Math.random() * 6 });
@@ -747,13 +747,15 @@ const ORB = (() => {
   return pts;
 })();
 
-function drawOrb(ctx, size, t, { breath = 0, glow = 0, yaw = br.yaw, pitch = br.pitch } = {}) {
-  const c = size / 2, R = size * 0.4 * (1 + 0.05 * breath);
-  ctx.clearRect(0, 0, size, size);
-  const halo = ctx.createRadialGradient(c, c, R * 0.2, c, c, R * 1.25);
-  halo.addColorStop(0, "rgba(60, 50, 110, 0.55)"); halo.addColorStop(0.8, "rgba(90, 70, 200, 0.18)"); halo.addColorStop(1, "rgba(120, 100, 230, 0)");
-  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(c, c, R * 1.25, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "rgba(25, 22, 40, 0.55)"; ctx.beginPath(); ctx.arc(c, c, R * 1.01, 0, Math.PI * 2); ctx.fill();   // the sphere's dark body
+function drawOrb(ctx, size, t, { breath = 0, glow = 0, yaw = br.yaw, pitch = br.pitch, width = size } = {}) {
+  const c = size / 2, R = size * 0.47 * (1 + 0.03 * breath);
+  ctx.clearRect(0, 0, width, size);
+  ctx.save(); ctx.translate((width - size) / 2, 0);
+  // a crisp dark body with a thin rim glow that stays inside the canvas (no square edges)
+  const halo = ctx.createRadialGradient(c, c, R * 0.96, c, c, Math.min(c, R * 1.06));
+  halo.addColorStop(0, "rgba(120, 100, 230, 0.35)"); halo.addColorStop(1, "rgba(120, 100, 230, 0)");
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(c, c, Math.min(c, R * 1.06), 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(22, 20, 32, 0.92)"; ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
   ctx.globalCompositeOperation = "lighter";
   const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
   const dot = Math.max(1, size / 200);
@@ -773,11 +775,12 @@ function drawOrb(ctx, size, t, { breath = 0, glow = 0, yaw = br.yaw, pitch = br.
     ctx.fillRect(c + x1 * R, c + y2 * R, dot, dot);
   }
   ctx.globalCompositeOperation = "source-over";
+  ctx.restore();
 }
 
 // The wave: brighter behind the dot (time already breathed), softer ahead, fading at both edges.
 function drawWave(ctx, W, H, t) {
-  const top = 55, bottom = 245, mid = W / 2;
+  const top = 80, bottom = 250, mid = W / 2;   // the wave spans the orb like the reference
   ctx.clearRect(0, 0, W, H);
   const grad = ctx.createLinearGradient(0, 0, W, 0);
   grad.addColorStop(0, "rgba(255,255,255,0)"); grad.addColorStop(0.18, "rgba(255,255,255,0.75)");
@@ -788,10 +791,10 @@ function drawWave(ctx, W, H, t) {
     const y = bottom - level(t + (x - mid) / W * CYCLE * 0.9) * (bottom - top);
     x < -5 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
-  ctx.strokeStyle = grad; ctx.lineWidth = 9; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+  ctx.strokeStyle = grad; ctx.lineWidth = 10; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
   const y = bottom - level(t) * (bottom - top);
   ctx.shadowColor = "rgba(255,255,255,0.8)"; ctx.shadowBlur = 14;
-  ctx.beginPath(); ctx.arc(mid, y, 8, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.beginPath(); ctx.arc(mid, y, 12, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
   ctx.shadowBlur = 0;
 }
 
@@ -825,18 +828,18 @@ function hush() {
 
 // Intro art: the orb turning slowly behind the play button, and a tiny one in the session row
 function animateIntro() {
-  const art = fit($("orb-art"), 240, 240), thumb = fit($("orb-thumb"), 48, 48), t0 = performance.now();
+  const art = fit($("orb-art"), 296, 296), thumb = fit($("orb-thumb"), 92, 64), t0 = performance.now();
   const loop = (now) => {
     if ($("breathe").hidden || $("b-intro").hidden) return;
     const t = (now - t0) / 1000;
-    drawOrb(art, 240, t, { yaw: t * 0.15 });
-    drawOrb(thumb, 48, t, { yaw: t * 0.15 });
+    drawOrb(art, 296, t, { yaw: t * 0.15 });
+    drawOrb(thumb, 64, t, { yaw: t * 0.15, width: 92 });
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
 }
 
-const orbCtx = () => br.orbCtx || (br.orbCtx = fit($("orb"), 300, 300));
+const orbCtx = () => br.orbCtx || (br.orbCtx = fit($("orb"), 296, 296));
 const waveCtx = () => br.waveCtx || (br.waveCtx = fit($("wave"), 393, 300));
 const elapsed = () => br.elapsed + (br.running ? (performance.now() - br.start) / 1000 : 0);
 
@@ -849,7 +852,7 @@ function runLoop() {
     const t = elapsed(), p = ((t % CYCLE) + CYCLE) % CYCLE, inhale = p < IN;
     const progress = inhale ? p / IN : (p - IN) / OUT;
     const glow = br.running && !inhale ? Math.sin(Math.min(1, progress * 1.4) * Math.PI / 2) : 0;
-    drawOrb(orbCtx(), 300, now / 1000, { breath: br.running ? level(t) : 0, glow });
+    drawOrb(orbCtx(), 296, now / 1000, { breath: br.running ? level(t) : 0, glow });
     if (br.running || br.elapsed > 0) {
       drawWave(waveCtx(), 393, 300, t);
       const label = $("breathe-label");
@@ -857,8 +860,6 @@ function runLoop() {
       if (br.running && phase !== br.phase) { br.phase = phase; chime(phase, phase === "in" ? IN : OUT); }
       label.textContent = inhale ? "Breathe In" : "Breathe Out";
       label.style.setProperty("--p", progress.toFixed(3));
-      const done = Math.min(br.breaths, Math.floor(t / CYCLE) + 1);
-      $("b-count").textContent = `${done}/${br.breaths}`;
       if (t >= br.breaths * CYCLE) { finishBreathe(t); return; }
     }
     requestAnimationFrame(loop);
@@ -890,7 +891,7 @@ function openBreathe() {
 }
 function enterRun() {
   $("b-intro").hidden = true; $("b-run").hidden = false;
-  $("breathe-label").textContent = ""; $("b-count").textContent = "";
+  $("breathe-label").textContent = ""; $("b-count").textContent = br.breaths;
   waveCtx().clearRect(0, 0, 393, 300);
   $("b-hint").style.opacity = 1;
   setPlayIcon(false);
@@ -899,7 +900,9 @@ function enterRun() {
 $("b-start").onclick = enterRun;
 $("b-art-play").onclick = enterRun;
 $("b-about").onclick = () => ($("b-about-text").hidden = !$("b-about-text").hidden);
-$("b-length-btn").onclick = () => { br.breaths = LENGTHS[(LENGTHS.indexOf(br.breaths) + 1) % LENGTHS.length]; lengthLabel(); };
+const nextLength = () => { br.breaths = LENGTHS[(LENGTHS.indexOf(br.breaths) + 1) % LENGTHS.length]; lengthLabel(); $("b-count").textContent = br.breaths; };
+$("b-length-btn").onclick = nextLength;
+$("b-count").onclick = () => { if (!br.running && !br.elapsed) nextLength(); };
 $("b-back").onclick = () => { show("chat"); scrollDown(); };
 
 $("breathe-play").onclick = () => {

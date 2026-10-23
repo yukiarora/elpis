@@ -107,8 +107,10 @@
         <button class="b-about" id="b-about">ⓘ About this exercise</button>
         <p class="b-about-text" id="b-about-text" hidden>Breathing slowly, about five seconds in and five seconds out, gently tells your body it's safe. It can quiet a racing mind, ease tight shoulders and give you a little energy back. There's no right way to do it. Just follow the dot.</p>
         <div class="b-tags"><span>Relax</span><span>Recharge</span></div>
-        <div class="b-session">
-          <canvas id="orb-thumb" width="48" height="48"></canvas>
+      </div>
+      <div class="b-session">
+        <div class="b-session-row">
+          <canvas id="orb-thumb" width="92" height="64"></canvas>
           <div><b>Drift</b><small id="b-length">10 breaths · about 2 min</small></div>
           <button class="b-length-btn" id="b-length-btn" aria-label="Change length">Change</button>
         </div>
@@ -127,7 +129,7 @@
       <div class="b-controls">
         <button class="b-side" id="breathe-mute" aria-label="Sound on"><svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor"><path d="M4 12h5l7-6v20l-7-6H4z"/><path id="mute-wave" d="M20 11.5a6 6 0 0 1 0 9" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
         <button class="round play" id="breathe-play" aria-label="Start"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor" id="play-icon"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"/></svg></button>
-        <span class="b-count" id="b-count"></span>
+        <button class="b-count" id="b-count" aria-label="Breaths">10</button>
       </div>
     </div>
 

@@ -234,55 +234,64 @@ button.event:hover { color: #fff; }
 .round.end { background: var(--end-red); color: #fff; }
 
 /* ---------- Breathe ---------- */
-/* Night space in Elpis colours: deep violet-black with a soft purple glow, stars on a canvas */
-.breathe { background: radial-gradient(120% 70% at 50% 35%, #2a2347 0%, #110e1f 55%, #07060d 100%); align-items: stretch; }
+/* Layout and sizes follow the reference video (scaled 402 -> 393pt); colours are Elpis's own. */
+.breathe { background: #050507; align-items: stretch; }   /* near-black space, like the video */
 .breathe .stars { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-/* Intro card */
-.b-intro { position: relative; flex: 1; display: flex; flex-direction: column; }
-.b-top { margin-top: 54px; height: 41px; padding: 0 16px; display: flex; align-items: center; }
-.b-art { position: relative; height: 270px; display: grid; place-items: center; }
-.b-art canvas { width: 240px; height: 240px; }
-.b-art-play { position: absolute; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: #fff;
-  background: rgba(20, 14, 45, 0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-.b-sheet { flex: 1; margin-top: -10px; padding: 26px 20px 34px; border-radius: 28px 28px 0 0; text-align: center;
-  background: linear-gradient(180deg, rgba(42, 34, 76, 0.92), rgba(24, 19, 44, 0.96)); display: flex; flex-direction: column; align-items: center; }
-.b-sheet h2 { margin: 0 0 8px; font-size: 30px; font-weight: 600; }
-.b-desc { margin: 0 12px 10px; font-size: 16px; line-height: 1.35; color: rgba(255, 255, 255, 0.8); }
-.b-about { font-size: 14px; color: #c9bdf0; text-decoration: underline; }
-.b-about-text { margin: 10px 4px 0; font-size: 14px; line-height: 1.45; color: rgba(255, 255, 255, 0.72); text-align: left; }
-.b-tags { display: flex; gap: 8px; margin: 14px 0 18px; }
-.b-tags span { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 12px; background: #8f7fc4; color: #fff; }
-.b-session { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.06); text-align: left; }
-.b-session canvas { width: 48px; height: 48px; border-radius: 10px; background: #07060d; }
-.b-session div { flex: 1; }
-.b-session b { display: block; font-size: 16px; font-weight: 600; }
-.b-session small { font-size: 13px; color: rgba(255, 255, 255, 0.65); }
-.b-length-btn { font-size: 13px; color: #c9bdf0; padding: 6px 10px; }
-.b-start { margin-top: auto; width: 100%; height: 50px; border-radius: 14px; background: #8f7fc4; color: #fff; font-size: 17px; font-weight: 600; }
+/* Intro */
+.b-intro { position: absolute; inset: 0; }
+.b-top { position: absolute; top: 56px; left: 16px; }
+.b-top .icon-btn { width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); }
+.b-art { position: absolute; top: 127px; left: 50%; width: 296px; height: 296px; margin-left: -148px; }
+.b-art canvas { width: 296px; height: 296px; }
+.b-art-play { position: absolute; left: 50%; top: 50%; width: 118px; height: 118px; margin: -59px 0 0 -59px; border-radius: 50%;
+  display: grid; place-items: center; color: #9a8bc0; background: rgba(15, 9, 42, 0.85); }
+.b-art-play svg { width: 40px; height: 40px; }
+.b-sheet { position: absolute; top: 444px; left: -40px; right: -40px; bottom: 0; padding: 40px 60px 0;
+  border-radius: 50% 50% 0 0 / 46px 46px 0 0; background: #0f092a; text-align: center; }
+.b-sheet h2 { margin: 0 0 8px; font-size: 33px; line-height: 40px; font-weight: 700; }
+.b-desc { margin: 0 0 8px; font-size: 17px; line-height: 25px; color: rgba(255, 255, 255, 0.82); }
+.b-about { font-size: 15.5px; color: #c9bdf0; text-decoration: underline; }
+.b-about-text { position: relative; z-index: 2; margin: 8px 0 0; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.45;
+  color: rgba(255, 255, 255, 0.85); text-align: left; background: #2e2a42; }
+.b-tags { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+.b-tags span { font-size: 13.5px; font-weight: 600; padding: 2px 12px; border-radius: 12px; background: #9a8bc0; color: #fff; }
+.b-session { position: absolute; left: 0; right: 0; top: 653px; bottom: 0; background: #2e2a42; }
+.b-session-row { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; align-items: center; gap: 12px; text-align: left; }
+.b-session canvas { width: 92px; height: 64px; border-radius: 12px; background: #050507; }
+.b-session-row div { flex: 1; }
+.b-session b { display: block; font-size: 21px; font-weight: 600; }
+.b-session small { font-size: 14.5px; color: rgba(255, 255, 255, 0.7); }
+.b-length-btn { font-size: 14px; color: #c9bdf0; padding: 6px 4px; }
+.b-start { position: absolute; left: 20px; right: 20px; top: 98px; height: 49px; border-radius: 12px; background: #9a8bc0; color: #fff;
+  font-size: 21px; font-weight: 600; box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25); }
 
-/* Breathing: orb + wave */
+/* Breathing */
 .b-run { position: absolute; inset: 0; }
-.b-close { position: absolute; top: 58px; left: 16px; z-index: 3; }
-.orb { position: absolute; left: 50%; top: 170px; width: 300px; height: 300px; margin-left: -150px; touch-action: none; cursor: grab; }
-.wave { position: absolute; left: 0; top: 170px; width: 393px; height: 300px; pointer-events: none; }
-.b-hint { position: absolute; top: 480px; left: 0; right: 0; text-align: center; font-size: 13px; color: rgba(255, 255, 255, 0.6); transition: opacity .6s; }
+.b-close { position: absolute; top: 128px; left: 20px; z-index: 3; width: 30px; height: 30px; }
+.orb { position: absolute; left: 50%; top: 278px; width: 296px; height: 296px; margin-left: -148px; touch-action: none; cursor: grab; }
+.wave { position: absolute; left: 0; top: 278px; width: 393px; height: 300px; pointer-events: none; }
+.b-hint { position: absolute; top: 470px; left: 0; right: 0; text-align: center; font-size: 14.5px; font-weight: 600; color: #fff; transition: opacity .6s; pointer-events: none; }
 /* the words fill in letter by letter as the seconds pass (--p is 0..1) */
 .breathe-label {
-  position: absolute; top: 500px; left: 0; right: 0; text-align: center; font-size: 26px; font-weight: 600; letter-spacing: 0.2px;
+  position: absolute; top: 552px; left: 0; right: 0; text-align: center; font-size: 29px; line-height: 36px; font-weight: 700;
   background: linear-gradient(90deg, #fff 0, #fff calc(var(--p, 0) * 100%), rgba(255, 255, 255, 0.32) calc(var(--p, 0) * 100% + 6%));
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  width: max-content; margin: 0 auto; transition: opacity .5s;
+  width: max-content; margin: 0 auto;
 }
-.b-controls { position: absolute; top: 680px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 34px; }
-.b-side { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, 0.1); }
-.b-count { width: 44px; text-align: center; font-size: 13px; color: rgba(255, 255, 255, 0.65); }
-.round.play { width: 72px; height: 72px; background: #f5f2fa; color: #1b1630; transition: background .3s, transform .3s; }
-.breathe.running .round.play { background: rgba(255, 255, 255, 0.18); color: #fff; transform: scale(0.8); }
-.breathe.running .b-side { opacity: 0.6; }
+.b-controls { position: absolute; top: 673px; left: 0; right: 0; height: 120px; display: flex; justify-content: center; align-items: center; gap: 0; }
+.b-controls > * { margin: 0 0; }
+.b-side, .b-count { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: rgba(60, 60, 67, 0.6); font-size: 15px; font-weight: 600; margin: 0 30px !important; }
+.round.play { width: 118px; height: 118px; background: #fff; color: #0f092a; transition: all .4s; }
+.round.play svg { width: 46px; height: 46px; }
+/* while breathing, only a small pause button, lower down — like the reference */
+.breathe.running .b-side, .breathe.running .b-count { opacity: 0; pointer-events: none; }
+.breathe.running .round.play { width: 60px; height: 60px; background: rgba(60, 60, 67, 0.6); color: #fff; transform: translateY(29px); }
+.breathe.running .round.play svg { width: 26px; height: 26px; }
 .breathe-done {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 0 50px; background: radial-gradient(120% 70% at 50% 35%, #2a2347 0%, #110e1f 55%, #07060d 100%);
+  text-align: center; padding: 0 50px; background: #050507;
 }
 .breathe-done img { width: 90px; margin-bottom: 26px; animation: bob 6s ease-in-out infinite; }
 .breathe-done .lead { font-size: 24px; margin: 0 0 10px; }
