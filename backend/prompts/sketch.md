@@ -8,7 +8,7 @@ TITLE: <a short lowercase caption, 2-5 words, e.g. painting happy landscapes>
 </svg>
 
 Rules:
-- Draw flat and 2D, straight-on, like a quick doodle in a journal or a kid's drawing — never a technical or 3D drawing. A cup is a simple U shape with a handle and a couple of steam squiggles: no oval rim, no cylinder, no perspective, no shading, no depth lines.
+- Draw flat and 2D, straight-on, like a quick doodle in a journal or a kid's drawing — never a technical or 3D drawing. A cup is a simple U shape with a handle and a couple of steam squiggles: no oval rim, no cylinder, no perspective, no 3D shading, no depth lines.
 - Make it cute and illustrated, like a sweet sticker or a picture-book doodle: round, soft, chubby shapes; curvy lines; a little smiley face on the main object when it fits (a happy cup, a smiling sun); one or two tiny accents like a heart, a sparkle or a few little stars.
 - Draw with feeling, like an artist sketching: loose `path`s with generous curves, nothing straight-edged, ruled or measured. Use circles and ellipses only for naturally round things (a sun, eyes, a cheek blush).
 - Vary the line weight to make it expressive: stroke-width 5 for the main outline, 3–4 for details, 2–3 for the tiny accents.
