@@ -131,7 +131,8 @@ function renderAfter(meta, { live } = {}) {
   wrap.className = "chips";
   for (const c of chips) {
     const b = document.createElement("button");
-    b.className = "chip" + (c.act ? " act" : ""); b.textContent = c.label;
+    b.className = "chip" + (c.act ? " act" : "");
+    b.appendChild(document.createElement("span")).textContent = c.label;
     b.onclick = () => { if (!c.act) clearTransient(); c.run(); };
     wrap.appendChild(b);
     if (c.act) wrap.appendChild(Object.assign(document.createElement("span"), { className: "break" }));

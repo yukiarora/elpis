@@ -90,7 +90,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   display: flex; flex-direction: column;
 }
 .messages > .day, .messages > .event { margin: 8px auto; }
-.messages > .chips, .messages > .card { margin-top: 4px; margin-bottom: 8px; }
+.messages > .card { margin-top: 4px; margin-bottom: 8px; }
 .messages::-webkit-scrollbar { display: none; }
 /* Figma text style "Body 1/Regular/18/20" — shared by Elpis and user messages */
 .msg { font-size: 20px; line-height: 24px; letter-spacing: -0.254px; }
@@ -120,14 +120,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .day { align-self: center; font-size: 11px; color: rgba(255,255,255,0.55); }
 .event { align-self: center; font-size: 13px; color: var(--text-dim); padding: 4px 12px; border-radius: 12px; background: rgba(0,0,0,0.12); text-align: center; max-width: 85%; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 0 51px; }
+/* Suggestion pills = Figma "multipill": Windows/Glass material, same type as the bubbles */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 20px 36px; }
 .chip {
-  font-size: 14px; padding: 9px 16px; border-radius: 18px;
-  border: 0; background: rgba(255, 255, 255, 0.12); color: #fff;
+  position: relative; border-radius: 100px; padding: 8px 16px; color: #fff;
+  font-size: 20px; line-height: 24px; letter-spacing: -0.254px;
+  /* Figma border: white 7% + #5E5E5E 15%, blended so it brightens; approximated as plain white */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
-.chip.act { font-size: 12px; padding: 6px 12px; background: rgba(255, 255, 255, 0.16); }
+.chip::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(128, 128, 128, 0.3); mix-blend-mode: luminosity; }
+.chip > span { position: relative; z-index: 1; }
 .chips .break { flex-basis: 100%; height: 0; }
-.chip:hover { background: rgba(255,255,255,0.18); }
+.chip:hover { background: rgba(255, 255, 255, 0.06); }
 
 .card {
   margin-left: 51px; margin-right: 16px; padding: 14px 16px; border-radius: 18px;
