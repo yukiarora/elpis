@@ -133,10 +133,10 @@ class ChatIn(BaseModel):
 
 EVENT_NOTES = {
     "onboard": "She just opened Elpis for the first time and told you her name — this is the very start. "
-               "Welcome her warmly in 1-2 short sentences and ask one gentle question about how she's doing. "
+               "Welcome her sweetly and warmly in 2-3 sentences and ask one gentle question about how she's doing. "
                "Offer easy suggestions.",
-    "call_start": "She just started a voice call with you. Greet her the way a friend picks up the phone — one or "
-                  "two short sentences, using what you know about her.",
+    "call_start": "She just started a voice call with you. Greet her the way a caring friend picks up the phone — "
+                  "two or three warm sentences, using what you know about her.",
 }
 
 
