@@ -307,8 +307,6 @@ button.event:hover { color: #fff; }
   fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
 .ink * { stroke: var(--ink); }
 .ink [fill="white"] { fill: var(--ink); }
-.ink .hatch { opacity: 0.45; }              /* pencil shading under the outline */
-.ink .solid { stroke: none; fill: var(--ink); }
 /* Cards are moved by JS (see "Restworld" in app.js); lifted while being dragged */
 .rw-canvas .paper { left: 0; top: 0; touch-action: none; will-change: transform; }
 .rw-canvas .paper.lifted { background: linear-gradient(160deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.5)); cursor: grabbing; }

@@ -357,7 +357,7 @@ $("j-keep").onclick = async () => {
   if (!text) { $("j-text").focus(); return; }
   $("j-keep").disabled = true;
   await setTab("rw");   // let Restworld finish loading first
-  const studio = openStudio(text);
+  const studio = openStudio();
   try {
     const moment = await streamSketch({ prompt: journalPrompt, text }, studio);
     await studio.drawn();                 // let the crayon finish its last line
@@ -422,56 +422,11 @@ function shapesFrom(svgText) {
   });
   return out;
 }
-// Turn one plain shape into artist strokes with rough.js: overlapping passes, gently bowed lines,
-// little overshoots, and pencil hatching instead of flat fills. The seed keeps a sketch looking the same.
-const INK = "#4b4266", HATCH = "#4b4267";   // hatching gets its own (identical-looking) colour so we can tell it apart
-const seedFrom = (text = "") => { let h = 7; for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 2147483647; return h || 7; };
-const num = (el, a, d = 0) => parseFloat(el.getAttribute(a)) || d;
-const pointsOf = (el) => (el.getAttribute("points") || "").trim().split(/[\s,]+/).map(Number)
-  .reduce((acc, v, i, arr) => (i % 2 ? acc : [...acc, [v, arr[i + 1]]]), []).filter(([x, y]) => !isNaN(x) && !isNaN(y));
-
-function roughStrokes(shape, seed) {
-  if (!window.rough) return [shape];
-  const g = rough.generator(), tag = shape.localName;
-  const size = tag === "circle" ? num(shape, "r") * 2 : tag === "ellipse" ? Math.max(num(shape, "rx"), num(shape, "ry")) * 2 : 40;
-  const tiny = size < 10;   // eyes, dots: keep them round and simple
-  const filled = shape.getAttribute("fill") === "white";
-  const o = {
-    seed, stroke: INK, strokeWidth: num(shape, "stroke-width", 3.5),
-    roughness: tiny ? 0.3 : 1.9, bowing: 2.4, maxRandomnessOffset: tiny ? 0.4 : 2.6, curveStepCount: 11,
-    disableMultiStroke: tiny, preserveVertices: false,
-    fill: filled ? (tiny ? INK : HATCH) : undefined, fillStyle: tiny ? "solid" : "hachure",
-    hachureAngle: -38, hachureGap: 4.2, fillWeight: 1.1,
-  };
-  let d;
-  try {
-    if (tag === "path") d = g.path(shape.getAttribute("d") || "", o);
-    else if (tag === "circle") d = g.circle(num(shape, "cx"), num(shape, "cy"), num(shape, "r") * 2, o);
-    else if (tag === "ellipse") d = g.ellipse(num(shape, "cx"), num(shape, "cy"), num(shape, "rx") * 2, num(shape, "ry") * 2, o);
-    else if (tag === "line") d = g.line(num(shape, "x1"), num(shape, "y1"), num(shape, "x2"), num(shape, "y2"), o);
-    else if (tag === "polyline") d = g.linearPath(pointsOf(shape), o);
-    else if (tag === "polygon") d = g.polygon(pointsOf(shape), o);
-    else if (tag === "rect") d = g.rectangle(num(shape, "x"), num(shape, "y"), num(shape, "width"), num(shape, "height"), o);
-  } catch { return [shape]; }
-  if (!d) return [shape];
-  // hatching and fills first, then the outline on top — like shading, then inking
-  return g.toPaths(d).map((p) => {
-    const el = document.createElementNS(SVG_NS, "path");
-    el.setAttribute("d", p.d);
-    if (p.fill && p.fill !== "none") { el.setAttribute("fill", INK); el.classList.add("solid"); }
-    else {
-      el.setAttribute("stroke-width", p.strokeWidth);
-      if (p.stroke === HATCH) el.classList.add("hatch");
-    }
-    return el;
-  }).sort((a, b) => (b.classList.length ? 1 : 0) - (a.classList.length ? 1 : 0));
-}
-
-function sketchSvg(shapes = [], seed = 7) {
+function sketchSvg(shapes = []) {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 200 200");
   svg.classList.add("ink");
-  shapes.forEach((s, i) => roughStrokes(s, seed + i).forEach((st) => svg.appendChild(st)));
+  shapes.forEach((s) => svg.appendChild(s));
   return svg;
 }
 
@@ -492,7 +447,7 @@ const CRAYON = `<svg viewBox="0 0 18 52" width="18" height="52" aria-hidden="tru
   <path d="M5 13 9 1.5l4 11.5z" fill="#4b4266"/></svg>`;
 
 // The studio: one big sheet in the middle of Restworld where the crayon draws the new moment.
-function openStudio(seedText = "") {
+function openStudio() {
   const wrap = document.createElement("div");
   wrap.className = "studio";
   wrap.innerHTML = `<div class="paper big"><div class="sketch"></div><div class="cap">sketching…</div>
@@ -510,32 +465,26 @@ function openStudio(seedText = "") {
   tipAt(sheet.offsetWidth * 0.62, sheet.offsetHeight * 0.42);
   let queue = Promise.resolve();
 
-  const seed = seedFrom(seedText);
-  let shapeCount = 0;
-
-  // Draw one stroke with the crayon. Hatching goes quickly and lightly; outlines take their time.
-  function drawOne(stroke) {
+  function drawOne(shape) {
     return new Promise((resolve) => {
       crayon.classList.remove("idle");
-      svg.appendChild(stroke);
-      const hatch = stroke.classList.contains("hatch"), solid = stroke.classList.contains("solid");
+      svg.appendChild(shape);
       let len = 0;
-      try { len = stroke.getTotalLength(); } catch {}
-      if (!len || calm || solid) {
-        if (solid) { stroke.style.opacity = 0; stroke.style.transition = "opacity .4s"; requestAnimationFrame(() => (stroke.style.opacity = 1)); }
-        return setTimeout(resolve, solid ? 150 : 0);
-      }
-      stroke.style.strokeDasharray = len; stroke.style.strokeDashoffset = len;
+      try { len = shape.getTotalLength(); } catch {}
+      if (!len || calm) { shape.style.opacity = 1; return resolve(); }
+      const fillOpacity = shape.getAttribute("fill-opacity");
+      shape.style.strokeDasharray = len; shape.style.strokeDashoffset = len;
+      if (fillOpacity) shape.style.fillOpacity = 0;
       // a hand eases into and out of each stroke, at its own pace, then lifts briefly
-      const dur = hatch ? Math.max(300, Math.min(900, len * 2.2)) : Math.max(450, Math.min(2200, len * 6 * (0.85 + Math.random() * 0.3)));
-      const t0 = performance.now();
+      const dur = Math.max(420, Math.min(1700, len * 8 * (0.85 + Math.random() * 0.3))), t0 = performance.now();
       const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
       const tick = (now) => {
         const p = ease(Math.min(1, (now - t0) / dur));
-        stroke.style.strokeDashoffset = len * (1 - p);
-        tipAt(...toSheet(stroke.getPointAtLength(len * p)));
+        shape.style.strokeDashoffset = len * (1 - p);
+        tipAt(...toSheet(shape.getPointAtLength(len * p)));
         if (now - t0 < dur) return requestAnimationFrame(tick);
-        setTimeout(resolve, hatch ? 40 : 120 + Math.random() * 220);   // pen lifts before the next stroke
+        if (fillOpacity) { shape.style.transition = "fill-opacity .5s"; shape.style.fillOpacity = fillOpacity; }
+        setTimeout(resolve, 120 + Math.random() * 220);   // pen lifts before the next stroke
       };
       requestAnimationFrame(tick);
     });
@@ -544,10 +493,7 @@ function openStudio(seedText = "") {
   return {
     setTitle(t) { wrap.querySelector(".cap").textContent = t; },
     addShape(svgText) {
-      for (const shape of shapesFrom(`<svg xmlns="${SVG_NS}">${svgText}</svg>`)) {
-        const strokes = roughStrokes(shape, seed + shapeCount++);
-        for (const st of strokes) queue = queue.then(() => drawOne(st));
-      }
+      for (const shape of shapesFrom(`<svg xmlns="${SVG_NS}">${svgText}</svg>`)) queue = queue.then(() => drawOne(shape));
     },
     async drawn() { await queue; crayon.classList.add("done"); await wait(500); },
     async flyAway() {
@@ -603,7 +549,7 @@ function placePaper(m, { fresh, at } = {}) {
   const el = document.createElement("div");
   el.className = "paper";
   el.innerHTML = `<div class="sketch"></div><div class="cap">${escapeHtml((m.title || "").toLowerCase())}</div>`;
-  el.querySelector(".sketch").appendChild(sketchSvg(shapesFrom(m.svg || ""), seedFrom(m.text)));
+  el.querySelector(".sketch").appendChild(sketchSvg(shapesFrom(m.svg || "")));
   const spot = at || openSpot();
   const card = {
     m, el, x: spot.x, y: spot.y, vx: 0, vy: 0,
@@ -741,7 +687,7 @@ function holdClose(m) {
   hold.innerHTML = `<div class="paper"><div class="sketch"></div><div class="cap">${escapeHtml(m.title.toLowerCase())}</div>
     <div class="note">${m.prompt ? `<i>${escapeHtml(m.prompt)}</i>\n` : ""}${escapeHtml(m.text)}</div>
     <button class="let-go">let this one go</button></div>`;
-  hold.querySelector(".sketch").appendChild(sketchSvg(shapesFrom(m.svg || ""), seedFrom(m.text)));
+  hold.querySelector(".sketch").appendChild(sketchSvg(shapesFrom(m.svg || "")));
   hold.hidden = false;
   deckle(hold.querySelector(".paper"));
   hold.onclick = (e) => { if (e.target === hold) hold.hidden = true; };
