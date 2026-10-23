@@ -362,3 +362,14 @@ button.event:hover { color: #fff; }
 .rw-hold .confirm-go button { padding: 6px 12px; border-radius: 14px; font-size: 13px; }
 .rw-hold .confirm-go .keep-it { background: #4d4466; color: #fff; }
 .rw-hold .confirm-go .go { color: #8a8496; text-decoration: underline; }
+
+/* ---------- + menu ---------- */
+.menu {
+  position: absolute; top: 88px; right: 14px; z-index: 30; width: 200px; padding: 6px;
+  border-radius: 16px; background: rgba(72, 60, 104, 0.92); backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px rgba(20, 10, 40, 0.35); animation: fade .15s ease;
+}
+@keyframes fade { from { opacity: 0; transform: translateY(-4px); } }
+.menu button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-size: 14px; text-align: left; }
+.menu button:hover { background: rgba(255, 255, 255, 0.1); }
+.menu svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
