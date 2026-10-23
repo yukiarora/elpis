@@ -200,6 +200,17 @@ def _is_glimmer(text):
     return False
 
 
+LOW = re.compile(r"\b(sad|sadness|down|low|cry|crying|cried|tears|miss|missing|grief|grieving|hurt|hurts|heavy|"
+                 r"empty|lonely|alone|numb|lost|loss|why did|why me|my fault|blame)\b", re.I)
+
+
+LOW_PHRASE = re.compile(r"\b(not|n't)\s+(?:feeling\s+)?(great|good|okay|ok|well|fine)\b|\bbad day\b|\brough day\b", re.I)
+
+
+def _is_low(text):
+    return bool(LOW.search(text) or LOW_PHRASE.search(text)) and not _is_glimmer(text)
+
+
 def _journal_question(reply):
     questions = re.findall(r"[^.!?\n]*\?", reply)
     q = questions[-1].strip() if questions else ""
@@ -277,6 +288,8 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
         visible, meta = _split_reply(full)
         if not crisis and meta.get("action") is None and text and _is_glimmer(text):
             meta["action"], meta["journal_prompt"] = "journal", _journal_question(visible)
+        elif not crisis and meta.get("action") is None and text and _is_low(text):
+            meta["action"] = "rest_world"   # sad: offer the things that make her happy
         if crisis or meta.get("action") == "crisis":
             meta["safety"] = card or safety.card("suicide")
             meta["suggestions"] = []

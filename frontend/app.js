@@ -146,7 +146,9 @@ function addSafetyCard(card) {
 function renderAfter(meta, { live } = {}) {
   const chips = [];
   if (meta.action === "journal" && meta.journal_prompt) chips.push({ label: "✎ Write about this", act: true, run: () => openJournal(meta.journal_prompt) });
-  else if (meta.action === "rest_world" && state.moments > 0) chips.push({ label: "✦ Visit your Restworld", act: true, run: () => openJournal(null, "rw") });
+  else if (meta.action === "rest_world") chips.push(state.moments > 0
+    ? { label: "✦ Visit your Restworld", act: true, run: () => openJournal(null, "rw") }
+    : { label: "✦ Start your Restworld", act: true, run: () => openJournal("What's one small thing that makes you happy?") });
   else if (meta.action === "breathe") chips.push({ label: "≋ Breathing space", act: true, run: openBreathe });
   for (const s of meta.suggestions || []) chips.push({ label: s, run: () => (state.name ? sendMessage(s) : introduce(s)) });
   if (!chips.length) return;
