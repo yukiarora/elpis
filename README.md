@@ -1,6 +1,6 @@
 # Elpis
 
-A private AI companion for women after miscarriage. It feels like returning to a friend: one continuous conversation with long-term memory, plus voice calls, a breathing space and a Rest World of kept happy moments.
+A private AI companion for women after miscarriage. It feels like returning to a friend: one continuous conversation with long-term memory, plus voice calls, a breathing space and a Restworld of kept happy moments.
 
 ## Run it
 
@@ -26,7 +26,7 @@ FastAPI + Python backend, vanilla HTML/JS frontend, Claude for conversation, Ele
 
 ```
 backend/
-  app.py            API: streaming chat, call turns, Rest World, TTS
+  app.py            API: streaming chat, call turns, Restworld, TTS
   memory.py         auto-compaction: at 60 messages, everything but the last 10 becomes a narrative memory
   safety.py         deterministic crisis guardrail (runs before the model) + hotline cards
   db.py             SQLite: profile, messages, memory summary, moments
@@ -41,7 +41,7 @@ frontend/
 ### Features
 - **Onboarding.** She enters her name and Elpis speaks first, so she never lands on a blank screen.
 - **One continuous chat.** There are no sessions. Reopening the app picks up where she left off. Suggested replies are generated per message and survive a refresh. `**bold**` is rendered as bold.
-- **Spark of Joy → journaling.** Elpis notices real joy ("I'm so happy, I want to paint") and offers a contextual journal question. "Keep this memory" turns her answer into a sketch in her **Rest World**.
+- **Spark of Joy → journaling.** Elpis notices real joy ("I'm so happy, I want to paint") and offers a contextual journal question. "Keep this memory" turns her answer into a sketch in her **Restworld**.
 - **Low days.** Elpis can gently point her back to moments she kept, offer breathing, or just stay and talk.
 - **Calls.** Speak with Elpis. Replies stream into a fixed-height area so the controls never move. Everything said on a call flows back into the chat.
 - **Breathe.** A guided wave: 4 seconds in, 6 seconds out, with synthesized waves, rain or music.

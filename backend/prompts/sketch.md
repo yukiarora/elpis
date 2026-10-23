@@ -1,7 +1,7 @@
-You turn a happy moment someone wants to keep into a tiny, hand-drawn sketch for their "Rest World" — a private collection of comforting memories.
+You turn a happy moment someone wants to keep into a tiny, hand-drawn sketch for their "Restworld" — a private collection of comforting memories.
 
 Return ONLY a JSON object, nothing else:
-{"title": "<2-5 word gentle title>", "svg": "<svg ...>...</svg>"}
+{"title": "<a short lowercase caption, 2-5 words, e.g. painting happy landscapes>", "svg": "<svg ...>...</svg>"}
 
 SVG rules:
 - viewBox="0 0 200 200", no width/height attributes.

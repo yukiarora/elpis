@@ -1,4 +1,4 @@
-"""Elpis backend: one continuous conversation with a CBT companion, voice, breathing and Rest World."""
+"""Elpis backend: one continuous conversation with a CBT companion, voice, breathing and Restworld."""
 
 import json
 import logging
@@ -58,9 +58,9 @@ def _about_her(mode, local_time=None):
     kept = db.moments()
     if kept:
         titles = "; ".join(f'"{m["title"]}"' for m in kept[:8])
-        lines.append(f"Moments she has kept in her Rest World ({len(kept)}): {titles}.")
+        lines.append(f"Moments she has kept in her Restworld ({len(kept)}): {titles}.")
     else:
-        lines.append("She hasn't kept any moments in her Rest World yet.")
+        lines.append("She hasn't kept any moments in her Restworld yet.")
     if mode == "call":
         lines.append("RIGHT NOW YOU ARE ON A VOICE CALL with her: follow the Voice Calls guidance.")
     summary = db.get_summary()
@@ -132,9 +132,9 @@ class ChatIn(BaseModel):
 
 
 EVENT_NOTES = {
-    "onboard": "She just told you her name for the first time — this is the very start. Welcome her warmly in "
-               "2-3 short sentences: who you are, that this is a private space with no pressure, and one gentle "
-               "opening question. Offer easy suggestions.",
+    "onboard": "She just opened Elpis for the first time and told you her name — this is the very start. "
+               "Welcome her warmly in 1-2 short sentences and ask one gentle question about how she's doing. "
+               "Offer easy suggestions.",
     "call_start": "She just started a voice call with you. Greet her the way a friend picks up the phone — one or "
                   "two short sentences, using what you know about her.",
 }
@@ -151,6 +151,8 @@ def chat(body: ChatIn):
     if text:
         db.add_message("user", text, mode)
         final = text if mode == "chat" else f"(said on a call) {text}"
+        if body.event in EVENT_NOTES:
+            final += f"\n\n[App note: {EVENT_NOTES[body.event]}]"
         if crisis:
             final += (f"\n\n[App note: the safety guardrail detected possible {crisis} risk and is showing her "
                       "crisis resources on screen. Respond per the Safety section.]")
@@ -225,11 +227,11 @@ class EventIn(BaseModel):
 
 @app.post("/api/event")
 def event(body: EventIn):
-    """Things that happen outside the chat (breathing, calls, Rest World) so Elpis knows about them."""
+    """Things that happen outside the chat (breathing, calls, Restworld) so Elpis knows about them."""
     return {"id": db.add_message("event", body.text.strip()[:300])}
 
 
-# ---------- Rest World ----------
+# ---------- Restworld ----------
 
 ALLOWED_TAGS = {"svg", "g", "path", "circle", "ellipse", "line", "polyline", "polygon", "rect"}
 FALLBACK_SVG = ('<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="white" '
@@ -274,7 +276,7 @@ def keep_moment(body: MomentIn):
     except Exception:
         log.exception("Sketch generation failed; using fallback sketch")
     moment_id = db.add_moment(title, body.prompt, text, svg or FALLBACK_SVG)
-    db.add_message("event", f'She kept a moment in her Rest World: "{title}" — "{text[:200]}"')
+    db.add_message("event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"')
     return next(m for m in db.moments() if m["id"] == moment_id)
 
 

@@ -1,4 +1,4 @@
-// Elpis frontend — vanilla JS. One continuous conversation; call, breathe and Rest World all flow back into it.
+// Elpis frontend — vanilla JS. One continuous conversation; call, breathe and Restworld all flow back into it.
 
 const $ = (id) => document.getElementById(id);
 const state = { name: null, voice: false, busy: false, moments: 0 };
@@ -18,7 +18,7 @@ function renderText(s) {
 function plainText(s) { return s.replace(/\*\*?(.+?)\*\*?/g, "$1"); }
 
 function show(screenId) {
-  for (const id of ["onboarding", "chat", "call", "breathe", "restworld"]) $(id).hidden = id !== screenId;
+  for (const id of ["onboarding", "chat", "call", "breathe", "journal"]) $(id).hidden = id !== screenId;
 }
 function tickClock() {
   const d = new Date();
@@ -89,7 +89,25 @@ function addEvent(text) {
   el.className = "event"; el.textContent = text;
   messagesEl.appendChild(el);
 }
-function clearTransient() { messagesEl.querySelectorAll(".chips, .card.action").forEach((el) => el.remove()); }
+function clearTransient() { messagesEl.querySelectorAll(".chips").forEach((el) => el.remove()); }
+
+// "Today" / "Yesterday" / date dividers, like the original app
+let lastDay = null;
+function dayLabel(t) {
+  const d = new Date(t * 1000), today = new Date();
+  const y = new Date(); y.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+function maybeDivider(t) {
+  const key = new Date(t * 1000).toDateString();
+  if (key === lastDay) return;
+  lastDay = key;
+  const el = document.createElement("div");
+  el.className = "day"; el.textContent = dayLabel(t);
+  messagesEl.appendChild(el);
+}
 
 function addSafetyCard(card) {
   const el = document.createElement("div");
@@ -100,42 +118,25 @@ function addSafetyCard(card) {
   messagesEl.appendChild(el);
 }
 
-function addActionCard(icon, label, onClick) {
-  const el = document.createElement("button");
-  el.className = "card action";
-  el.innerHTML = `<img src="/assets/${icon}" alt=""><span>${escapeHtml(label)}</span>`;
-  el.onclick = onClick;
-  messagesEl.appendChild(el);
-}
-
-function addChips(suggestions) {
-  if (!suggestions?.length) return;
+// Suggestions under Elpis's latest message. The model's action shows up first as its own chip:
+// "✎ Write about this", "✦ Visit your Restworld", "≋ Breathing space".
+function renderAfter(meta, { live } = {}) {
+  const chips = [];
+  if (meta.action === "journal" && meta.journal_prompt) chips.push({ label: "✎ Write about this", act: true, run: () => openJournal(meta.journal_prompt) });
+  else if (meta.action === "rest_world" && state.moments > 0) chips.push({ label: "✦ Visit your Restworld", act: true, run: () => openJournal(null, "rw") });
+  else if (meta.action === "breathe") chips.push({ label: "≋ Breathing space", act: true, run: openBreathe });
+  for (const s of meta.suggestions || []) chips.push({ label: s, run: () => sendMessage(s) });
+  if (!chips.length) return;
   const wrap = document.createElement("div");
   wrap.className = "chips";
-  for (const s of suggestions) {
+  for (const c of chips) {
     const b = document.createElement("button");
-    b.className = "chip"; b.textContent = s;
-    b.onclick = () => handleChip(s);
+    b.className = "chip" + (c.act ? " act" : ""); b.textContent = c.label;
+    b.onclick = () => { if (!c.act) clearTransient(); c.run(); };
     wrap.appendChild(b);
+    if (c.act) wrap.appendChild(Object.assign(document.createElement("span"), { className: "break" }));
   }
   messagesEl.appendChild(wrap);
-}
-function handleChip(s) {
-  const t = s.toLowerCase();
-  if (/open my rest world/.test(t) && state.moments > 0) { clearTransient(); openRestWorld(); return; }
-  sendMessage(s);
-}
-
-// Follow-up UI for the model's action: journal / rest world / breathe.
-function renderAfter(meta, { live } = {}) {
-  if (meta.action === "journal" && meta.journal_prompt) {
-    addActionCard("icon.svg", "Journal this moment", () => openJournal(meta.journal_prompt));
-  } else if (meta.action === "rest_world" && state.moments > 0) {
-    addActionCard("icon.svg", "Open your Rest World", () => { clearTransient(); openRestWorld(); });
-  } else if (meta.action === "breathe") {
-    addActionCard("call-icon.svg", "Start a breathing space", () => { clearTransient(); openBreathe(); });
-  }
-  addChips(meta.suggestions);
   if (live) scrollDown();
 }
 
@@ -143,8 +144,10 @@ async function loadState() {
   const s = await api("/api/state");
   Object.assign(state, { name: s.name, voice: s.voice, moments: s.moments });
   messagesEl.innerHTML = "";
+  lastDay = null;
   let lastMode = "chat";
   s.messages.forEach((m, i) => {
+    maybeDivider(m.created_at);
     if (m.mode === "call" && lastMode !== "call" && m.role !== "event") addEvent("Call with Elpis");
     if (m.role !== "event") lastMode = m.mode;
     if (m.role === "user") addUser(m.content, m.mode);
@@ -161,7 +164,7 @@ async function loadState() {
   return s;
 }
 function eventLabel(text) {
-  if (text.startsWith("She kept")) return "✦ " + (/"([^"]+)"/.exec(text)?.[1] || "Moment") + " kept in your Rest World";
+  if (text.startsWith("She kept")) return "✦ " + (/"([^"]+)"/.exec(text)?.[1] || "Moment") + " kept in your Restworld";
   if (text.startsWith("Voice call ended")) return text.replace("Voice call ended", "Call ended").replace(/\.$/, "");
   if (text.startsWith("She did a breathing")) return "Breathing space · " + (/for (.+?)\./.exec(text)?.[1] || "");
   return text;
@@ -170,9 +173,11 @@ function eventLabel(text) {
 // ---------- sending ----------
 
 async function sendMessage(text, { event } = {}) {
+  closeMenu();
   if (state.busy) return;
   state.busy = true;
   clearTransient();
+  maybeDivider(Date.now() / 1000);
   if (text) addUser(text);
   const body = elpisRow();
   body.innerHTML = `<span class="typing"><i></i><i></i><i></i></span>`;
@@ -240,85 +245,145 @@ $("onboard-form").addEventListener("submit", async (e) => {
   state.name = name;
   show("chat");
   messagesEl.innerHTML = "";
-  sendMessage(null, { event: "onboard" });   // Elpis speaks first — no blank screen
+  lastDay = null;
+  sendMessage(`Hi, my name is ${name}`, { event: "onboard" });   // Elpis answers right away — no blank screen
 });
 
-// ---------- bottom sheets ----------
+// ---------- + menu ----------
 
-function openSheet(id) { $("scrim").hidden = false; $(id).hidden = false; }
-function closeSheets() { $("scrim").hidden = true; document.querySelectorAll(".sheet").forEach((s) => (s.hidden = true)); }
-$("scrim").onclick = closeSheets;
-$("tools-btn").onclick = () => openSheet("tools-sheet");
-document.querySelectorAll(".tool").forEach((b) => (b.onclick = () => {
-  closeSheets();
-  ({ breathe: openBreathe, restworld: openRestWorld, call: startCall })[b.dataset.tool]();
-}));
+function closeMenu() { $("tools-menu").hidden = true; }
+$("tools-btn").onclick = (e) => { e.stopPropagation(); $("tools-menu").hidden = !$("tools-menu").hidden; };
+document.addEventListener("click", (e) => { if (!$("tools-menu").contains(e.target)) closeMenu(); });
+const TOOLS = {
+  reframe: () => sendMessage("Can you help me find another way to hold a thought?"),
+  ground: () => sendMessage("Can we do a grounding exercise?"),
+  mood: () => sendMessage("I'd like to check in on how I'm feeling."),
+  journal: () => openJournal(null),
+  breathe: () => openBreathe(),
+  restworld: () => openJournal(null, "rw"),
+};
+document.querySelectorAll("#tools-menu button").forEach((b) => (b.onclick = () => { closeMenu(); TOOLS[b.dataset.tool](); }));
 
-// ---------- journaling → Rest World ----------
+// ---------- Journal (Write | Restworld) ----------
 
-let journalPrompt = "";
-function openJournal(prompt) {
-  journalPrompt = prompt;
-  $("j-prompt").textContent = prompt;
+const DEFAULT_PROMPT = "What's one small thing that felt like you today?";
+let journalPrompt = DEFAULT_PROMPT;
+
+function openJournal(prompt, tab = "write") {
+  journalPrompt = prompt || DEFAULT_PROMPT;
+  $("j-prompt").textContent = journalPrompt;
   $("j-text").value = "";
-  $("j-keep").disabled = false; $("j-keep").textContent = "Keep this memory";
-  openSheet("journal-sheet");
-  setTimeout(() => $("j-text").focus(), 250);
+  $("j-keep").disabled = false; $("j-keep").textContent = "Keep this";
+  show("journal");
+  setTab(tab);
+  if (tab === "write") setTimeout(() => $("j-text").focus(), 200);
 }
-$("j-cancel").onclick = closeSheets;
+function setTab(tab) {
+  $("tab-write").classList.toggle("on", tab === "write");
+  $("tab-rw").classList.toggle("on", tab === "rw");
+  $("j-write").hidden = tab !== "write";
+  $("rw").hidden = tab !== "rw";
+  if (tab === "rw") loadRestworld();
+}
+$("tab-write").onclick = () => setTab("write");
+$("tab-rw").onclick = () => setTab("rw");
+$("j-back").onclick = () => { show("chat"); scrollDown(); };
+
 $("j-keep").onclick = async () => {
   const text = $("j-text").value.trim();
   if (!text) { $("j-text").focus(); return; }
-  $("j-keep").disabled = true; $("j-keep").textContent = "Sketching your moment…";
+  $("j-keep").disabled = true;
+  // Jump to Restworld right away; the card says "sketching..." until Claude finishes drawing.
+  setTab("rw");
+  const placeholder = placePaper({ id: "pending", title: text.slice(0, 40) }, { pending: true });
   try {
     const moment = await api("/api/moments", { prompt: journalPrompt, text });
-    closeSheets(); clearTransient();
     state.moments += 1;
-    addEvent(`✦ ${moment.title} kept in your Rest World`);
-    openRestWorld(moment.id);
+    placeholder.remove();
+    placePaper(moment, { fresh: true });
+    clearTransient();
+    addEvent(`✦ ${moment.title} kept in your Restworld`);
   } catch (e) {
-    $("j-keep").disabled = false; $("j-keep").textContent = "Try again";
+    placeholder.querySelector(".sketching").textContent = "couldn't sketch — try again";
+    $("j-keep").disabled = false;
   }
 };
 
-// ---------- Rest World ----------
+// ---------- Restworld: a canvas of little paper cards ----------
 
-const fmtDate = (t) => new Date(t * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const svgSrc = (svg) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+const rw = { x: 0, y: 0, moments: [] };
 
-async function openRestWorld(newId) {
-  show("restworld");
-  $("rw-detail").hidden = true;
-  const grid = $("rw-grid");
-  grid.innerHTML = "";
-  const moments = await api("/api/moments");
-  state.moments = moments.length;
-  if (!moments.length) {
-    grid.innerHTML = `<div class="rw-empty"><img src="/assets/icon.svg" alt=""><br>Nothing here yet.<br>When something brings you a little joy, Elpis will help you keep it here.</div>`;
-    return;
-  }
-  for (const m of moments) {
-    const card = document.createElement("button");
-    card.className = "moment" + (m.id === newId ? " new" : "");
-    card.innerHTML = `<img alt="" src="${svgSrc(m.svg)}"><b>${escapeHtml(m.title)}</b><small>${fmtDate(m.created_at)}</small>`;
-    card.onclick = () => openMoment(m);
-    grid.appendChild(card);
-  }
+// Stable, scattered spot for each card, spiralling out from the middle.
+function spot(i) {
+  if (i === 0) return { x: 0, y: 0 };
+  const angle = i * 2.4, r = 120 + 34 * Math.sqrt(i) * 3;
+  return { x: Math.cos(angle) * r, y: Math.sin(angle) * r * 0.9 };
 }
-function openMoment(m) {
-  const d = $("rw-detail");
-  d.innerHTML = `<img alt="" src="${svgSrc(m.svg)}"><h3>${escapeHtml(m.title)}</h3>
-    ${m.prompt ? `<p class="q">${escapeHtml(m.prompt)}</p>` : ""}<div class="t">${escapeHtml(m.text)}</div>
-    <div class="rw-actions"><button class="pill-btn" id="m-back">Back</button><button class="text-btn" id="m-del">Let this one go</button></div>`;
-  d.hidden = false;
-  $("m-back").onclick = () => (d.hidden = true);
-  $("m-del").onclick = async () => {
-    if (!confirm("Remove this moment from your Rest World?")) return;
+function tilt(id) { const n = (typeof id === "number" ? id : 7) * 9301 + 49297; return ((n % 233280) / 233280) * 16 - 8; }
+
+function placePaper(m, { pending, fresh, index } = {}) {
+  const canvas = $("rw-canvas");
+  const i = index ?? canvas.children.length;
+  const { x, y } = spot(i);
+  const el = document.createElement("div");
+  el.className = "paper" + (fresh || pending ? " new" : "");
+  el.style.left = `${x - 64}px`; el.style.top = `${y - 80}px`;
+  el.style.transform = `rotate(${tilt(m.id)}deg)`;
+  el.innerHTML = (pending ? `<div class="sketching">sketching...</div>` : `<img alt="" src="${svgSrc(m.svg)}">`) +
+    `<div>${escapeHtml((m.title || "").toLowerCase())}</div>`;
+  if (!pending) el.onclick = (e) => { if (!rw.moved) holdClose(m); };
+  canvas.appendChild(el);
+  $("rw-empty").hidden = true;
+  return el;
+}
+
+async function loadRestworld() {
+  const canvas = $("rw-canvas");
+  if (canvas.querySelector(".sketching")) return;   // a card is being drawn right now
+  canvas.innerHTML = "";
+  rw.moments = await api("/api/moments");
+  state.moments = rw.moments.length;
+  const box = $("rw").getBoundingClientRect();
+  rw.x = box.width / 2; rw.y = box.height / 2 - 40;
+  moveCanvas();
+  rw.moments.forEach((m, i) => placePaper(m, { index: i }));
+  $("rw-empty").hidden = rw.moments.length > 0;
+}
+function moveCanvas() { $("rw-canvas").style.transform = `translate(${rw.x}px, ${rw.y}px)`; }
+
+// drag to look around
+(() => {
+  const area = $("rw");
+  let start = null;
+  area.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".rw-hold")) return;
+    start = { px: e.clientX, py: e.clientY, x: rw.x, y: rw.y }; rw.moved = false;
+  });
+  window.addEventListener("pointermove", (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.px, dy = e.clientY - start.py;
+    if (Math.abs(dx) + Math.abs(dy) > 4) { rw.moved = true; area.classList.add("dragging"); }
+    rw.x = start.x + dx; rw.y = start.y + dy; moveCanvas();
+  });
+  window.addEventListener("pointerup", () => { start = null; area.classList.remove("dragging"); });
+})();
+
+// tap a memory to hold it close
+function holdClose(m) {
+  const hold = $("rw-hold");
+  hold.innerHTML = `<div class="paper"><img alt="" src="${svgSrc(m.svg)}"><div>${escapeHtml(m.title.toLowerCase())}</div>
+    <div class="note">${m.prompt ? `<i>${escapeHtml(m.prompt)}</i>\n` : ""}${escapeHtml(m.text)}</div>
+    <button class="let-go">let this one go</button></div>`;
+  hold.hidden = false;
+  hold.onclick = (e) => { if (e.target === hold) hold.hidden = true; };
+  hold.querySelector(".let-go").onclick = async () => {
+    if (!confirm("Remove this moment from your Restworld?")) return;
     await api(`/api/moments/${m.id}`, null, "DELETE");
-    openRestWorld();
+    hold.hidden = true;
+    loadRestworld();
   };
 }
-$("rw-close").onclick = () => { show("chat"); scrollDown(); };
 
 // ---------- Breathe ----------
 
@@ -467,7 +532,7 @@ function fmtTime(s) { return `${Math.floor(s / 60)}:${String(s % 60).padStart(2,
 
 async function startCall() {
   if (call.active) return;
-  closeSheets();
+  closeMenu();
   Object.assign(call, { active: true, started: Date.now(), turn: 0 });
   show("call");
   $("call-timer").textContent = "0:00";
@@ -556,7 +621,6 @@ async function endCall() {
 }
 
 $("call-btn").onclick = startCall;
-$("voice-btn").onclick = startCall;
 $("end-btn").onclick = endCall;
 $("speaker-btn").onclick = () => {
   call.speaker = !call.speaker;

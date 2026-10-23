@@ -18,7 +18,7 @@ Preserve the following, in order of importance:
 
 <!-- RECONSTRUCTED BELOW THIS LINE — the deck (slide 41) cuts off after item 6. -->
 
-7. SPARKS OF JOY & REST WORLD: The things that light her up, and the moments she chose to keep in her Rest World. These are what Elpis can gently remind her of on low days.
+7. SPARKS OF JOY & REST WORLD: The things that light her up, and the moments she chose to keep in her Restworld. These are what Elpis can gently remind her of on low days.
 
 8. SAFETY: Any moment of crisis or risk, what was said, and whether she was connected to help. Never drop this, however long ago it was.
 

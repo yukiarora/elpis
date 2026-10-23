@@ -1,4 +1,4 @@
-"""SQLite storage: one user, one continuous conversation, a memory summary, and Rest World moments."""
+"""SQLite storage: one user, one continuous conversation, a memory summary, and Restworld moments."""
 
 import json
 import sqlite3
