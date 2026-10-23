@@ -1,18 +1,21 @@
 """Elpis backend: one continuous conversation with a CBT companion, voice, breathing and Restworld."""
 
+import hashlib
+import hmac
 import json
 import logging
 import os
 import re
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 import anthropic
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -37,6 +40,64 @@ db.init()
 app = FastAPI(title="Elpis")
 
 
+# ---------- access: passcode + one private space per browser ----------
+# With ELPIS_PASSCODE unset (running on your own machine) there's no gate and one user, "local".
+# With it set (hosted), each browser that enters the passcode gets its own conversation and Restworld.
+
+PASSCODE = os.getenv("ELPIS_PASSCODE", "").strip()
+PASS_TOKEN = hmac.new(PASSCODE.encode(), b"elpis-access", hashlib.sha256).hexdigest() if PASSCODE else ""
+YEAR = 365 * 24 * 3600
+OPEN_PATHS = {"/api/unlock", "/api/access"}
+
+
+@app.middleware("http")
+async def passcode_gate(request: Request, call_next):
+    path = request.url.path
+    if PASSCODE and path.startswith("/api/") and path not in OPEN_PATHS:
+        if not hmac.compare_digest(request.cookies.get("elpis_pass", ""), PASS_TOKEN):
+            return JSONResponse({"detail": "locked"}, status_code=401)
+    return await call_next(request)
+
+
+def current_uid(request: Request) -> str:
+    if not PASSCODE:
+        return db.LOCAL
+    uid = request.cookies.get("elpis_uid", "")
+    if not re.fullmatch(r"[0-9a-f]{32}", uid):
+        raise HTTPException(401, "locked")
+    return uid
+
+
+@app.get("/api/access")
+def access(request: Request):
+    return {"locked": bool(PASSCODE) and not hmac.compare_digest(request.cookies.get("elpis_pass", ""), PASS_TOKEN)}
+
+
+class UnlockIn(BaseModel):
+    passcode: str
+
+
+@app.post("/api/unlock")
+def unlock(body: UnlockIn, request: Request):
+    if not PASSCODE:
+        return {"ok": True}
+    if not hmac.compare_digest(body.passcode.strip().lower(), PASSCODE.lower()):
+        time.sleep(1)   # slow down guessing
+        raise HTTPException(403, "That passcode doesn't match.")
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    res = JSONResponse({"ok": True})
+    res.set_cookie("elpis_pass", PASS_TOKEN, max_age=YEAR, httponly=True, samesite="lax", secure=secure)
+    uid = request.cookies.get("elpis_uid", "")
+    if not re.fullmatch(r"[0-9a-f]{32}", uid):
+        res.set_cookie("elpis_uid", uuid.uuid4().hex, max_age=YEAR, httponly=True, samesite="lax", secure=secure)
+    return res
+
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}
+
+
 # ---------- context building ----------
 
 def _ago(seconds):
@@ -47,15 +108,15 @@ def _ago(seconds):
     return f"about {int(seconds // 86400)} days"
 
 
-def _about_her(mode, local_time=None):
-    name = db.get_name()
+def _about_her(uid, mode, local_time=None):
+    name = db.get_name(uid)
     lines = [f"Her name is {name}." if name else "You don't know her name yet."]
     now = local_time or datetime.now().strftime("%A, %-I:%M %p")
     lines.append(f"It is {now} where she is.")
-    last = db.last_message_time()
+    last = db.last_message_time(uid)
     if last and time.time() - last > 3 * 3600:
         lines.append(f"It has been {_ago(time.time() - last)} since you last talked.")
-    kept = db.moments()
+    kept = db.moments(uid)
     if kept:
         titles = "; ".join(f'"{m["title"]}"' for m in kept[:8])
         lines.append(f"Moments she has kept in her Restworld ({len(kept)}): {titles}.")
@@ -63,15 +124,15 @@ def _about_her(mode, local_time=None):
         lines.append("She hasn't kept any moments in her Restworld yet.")
     if mode == "call":
         lines.append("RIGHT NOW YOU ARE ON A VOICE CALL with her: follow the Voice Calls guidance.")
-    summary = db.get_summary()
+    summary = db.get_summary(uid)
     if summary:
         lines.append(f"\nWhat you remember from earlier in your conversation:\n{summary}")
     return "\n".join(lines)
 
 
-def _api_messages(final_user_content):
+def _api_messages(uid, final_user_content):
     turns = []
-    for m in db.active_messages():
+    for m in db.active_messages(uid):
         if m["role"] == "event":
             role, text = "user", f"[App note: {m['content']}]"
         else:
@@ -141,15 +202,15 @@ EVENT_NOTES = {
 
 
 @app.post("/api/chat")
-def chat(body: ChatIn):
+def chat(body: ChatIn, uid: str = Depends(current_uid)):
     mode = "call" if body.mode == "call" else "chat"
-    text = (body.text or "").strip()
+    text = (body.text or "").strip()[:4000]
     if not text and body.event not in EVENT_NOTES:
         raise HTTPException(400, "Empty message")
 
     crisis = safety.detect(text) if text else None
     if text:
-        db.add_message("user", text, mode)
+        db.add_message(uid, "user", text, mode)
         final = text if mode == "chat" else f"(said on a call) {text}"
         if body.event in EVENT_NOTES:
             final += f"\n\n[App note: {EVENT_NOTES[body.event]}]"
@@ -158,7 +219,7 @@ def chat(body: ChatIn):
                       "crisis resources on screen. Respond per the Safety section.]")
     else:
         final = f"[App note: {EVENT_NOTES[body.event]}]"
-    messages = _api_messages(final)
+    messages = _api_messages(uid, final)
 
     def stream():
         card = safety.card(crisis)
@@ -171,7 +232,7 @@ def chat(body: ChatIn):
                 max_tokens=2000,
                 system=[
                     {"type": "text", "text": load("system"), "cache_control": {"type": "ephemeral"}},
-                    {"type": "text", "text": _about_her(mode, (body.local_time or "")[:40] or None)},
+                    {"type": "text", "text": _about_her(uid, mode, (body.local_time or "")[:40] or None)},
                 ],
                 messages=messages,
             ) as s:
@@ -192,9 +253,9 @@ def chat(body: ChatIn):
             meta["suggestions"] = []
         if meta.get("safety") and not card:
             yield _sse("safety", meta["safety"])
-        msg_id = db.add_message("assistant", visible, mode, meta)
+        msg_id = db.add_message(uid, "assistant", visible, mode, meta)
         yield _sse("done", {"id": msg_id, "text": visible, **meta})
-        memory.compact_in_background(client, MODEL)
+        memory.compact_in_background(client, MODEL, uid)
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -205,19 +266,19 @@ class NameIn(BaseModel):
 
 
 @app.post("/api/onboard")
-def onboard(body: NameIn):
+def onboard(body: NameIn, uid: str = Depends(current_uid)):
     name = body.name.strip()[:40]
     if not name:
         raise HTTPException(400, "Name required")
-    db.set_name(name)
+    db.set_name(uid, name)
     return {"name": name}
 
 
 @app.get("/api/state")
-def state():
+def state(uid: str = Depends(current_uid)):
     msgs = [{"id": m["id"], "role": m["role"], "content": m["content"], "mode": m["mode"],
-             "meta": m["meta"], "created_at": m["created_at"]} for m in db.all_messages()]
-    return {"name": db.get_name(), "messages": msgs, "moments": len(db.moments()),
+             "meta": m["meta"], "created_at": m["created_at"]} for m in db.all_messages(uid)]
+    return {"name": db.get_name(uid), "messages": msgs, "moments": len(db.moments(uid)),
             "voice": bool(ELEVEN_KEY)}
 
 
@@ -226,9 +287,9 @@ class EventIn(BaseModel):
 
 
 @app.post("/api/event")
-def event(body: EventIn):
+def event(body: EventIn, uid: str = Depends(current_uid)):
     """Things that happen outside the chat (breathing, calls, Restworld) so Elpis knows about them."""
-    return {"id": db.add_message("event", body.text.strip()[:300])}
+    return {"id": db.add_message(uid, "event", body.text.strip()[:300])}
 
 
 # ---------- Restworld ----------
@@ -259,7 +320,7 @@ class MomentIn(BaseModel):
 
 
 @app.post("/api/moments")
-def keep_moment(body: MomentIn):
+def keep_moment(body: MomentIn, uid: str = Depends(current_uid)):
     text = body.text.strip()[:1000]
     if not text:
         raise HTTPException(400, "Write a little something first")
@@ -275,20 +336,20 @@ def keep_moment(body: MomentIn):
         svg = _safe_svg(data.get("svg"))
     except Exception:
         log.exception("Sketch generation failed; using fallback sketch")
-    moment_id = db.add_moment(title, body.prompt, text, svg or FALLBACK_SVG)
-    db.add_message("event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"',
+    moment_id = db.add_moment(uid, title, body.prompt, text, svg or FALLBACK_SVG)
+    db.add_message(uid, "event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"',
                    meta={"moment_id": moment_id})
-    return next(m for m in db.moments() if m["id"] == moment_id)
+    return next(m for m in db.moments(uid) if m["id"] == moment_id)
 
 
 @app.get("/api/moments")
-def list_moments():
-    return db.moments()
+def list_moments(uid: str = Depends(current_uid)):
+    return db.moments(uid)
 
 
 @app.delete("/api/moments/{moment_id}")
-def remove_moment(moment_id: int):
-    db.delete_moment(moment_id)
+def remove_moment(moment_id: int, uid: str = Depends(current_uid)):
+    db.delete_moment(uid, moment_id)
     return {"ok": True}
 
 
@@ -322,8 +383,8 @@ def tts(body: TTSIn):
 
 
 @app.post("/api/reset")
-def reset():
-    db.reset()
+def reset(uid: str = Depends(current_uid)):
+    db.reset(uid)
     return {"ok": True}
 
 

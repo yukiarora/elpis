@@ -75,6 +75,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   padding: 10px 26px; border-radius: 22px; font-size: 16px; font-weight: 500;
   border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.15);
 }
+.pass-error { color: #ffd6dc; font-size: 14px; margin: 0; }
 .pill-btn.solid { background: #fff; color: var(--call-elpis-text); border: 0; }
 .pill-btn:disabled { opacity: 0.5; }
 

@@ -18,7 +18,7 @@ function renderText(s) {
 function plainText(s) { return s.replace(/\*\*?(.+?)\*\*?/g, "$1"); }
 
 function show(screenId) {
-  for (const id of ["onboarding", "chat", "call", "breathe", "journal"]) $(id).hidden = id !== screenId;
+  for (const id of ["locked", "onboarding", "chat", "call", "breathe", "journal"]) $(id).hidden = id !== screenId;
 }
 function tickClock() {
   const d = new Date();
@@ -33,6 +33,7 @@ async function api(path, body, method) {
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) { showLocked(); throw new Error("locked"); }
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
   return res.json();
 }
@@ -42,6 +43,7 @@ const logEvent = (text) => api("/api/event", { text }).catch(() => {});
 async function streamChat(payload, { onDelta, onSafety } = {}) {
   const local_time = new Date().toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" });
   const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, local_time }) });
+  if (res.status === 401) { showLocked(); throw new Error("locked"); }
   if (!res.ok || !res.body) throw new Error("Elpis couldn't respond");
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -257,6 +259,25 @@ $("mic-btn").onclick = () => {
   $("mic-btn").classList.add("recording");
   dictation.start();
 };
+
+// ---------- passcode (hosted only) ----------
+
+function showLocked() {
+  show("locked");
+  setTimeout(() => $("pass-input").focus(), 100);
+}
+$("unlock-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("pass-error").hidden = true;
+  const res = await fetch("/api/unlock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: $("pass-input").value }) });
+  if (!res.ok) {
+    $("pass-error").textContent = (await res.json().catch(() => ({}))).detail || "That didn't work. Try again?";
+    $("pass-error").hidden = false;
+    return;
+  }
+  $("pass-input").value = "";
+  boot();
+});
 
 // ---------- onboarding ----------
 
@@ -772,13 +793,16 @@ $("speaker-btn").onclick = () => {
 
 // ---------- boot ----------
 
-(async function boot() {
+async function boot() {
   try {
+    if ((await api("/api/access")).locked) { showLocked(); return; }
     const s = await loadState();
     if (!s.name) { show("onboarding"); setTimeout(() => $("name-input").focus(), 100); return; }
     show("chat");
     if (!s.messages.length) sendMessage(null, { event: "onboard" });
   } catch (e) {
+    if (e.message === "locked") return;
     document.body.innerHTML = `<p style="color:#fff;padding:24px">Elpis couldn't start: ${escapeHtml(e.message)}</p>`;
   }
-})();
+}
+boot();

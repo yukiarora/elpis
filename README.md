@@ -20,6 +20,17 @@ Use Chrome or Safari, which have the speech recognition that voice calls need.
 
 Reset everything: `curl -X POST localhost:3000/api/reset`, or delete `elpis.db`.
 
+## Share it with friends (Railway)
+
+Hosted, each friend's browser gets its own private Elpis (name, conversation, memory, Restworld), behind a passcode you choose.
+
+1. railway.com → **New Project** → **Deploy from GitHub repo** → `elpis`. It builds from the `Dockerfile`.
+2. **Variables**: `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELPIS_PASSCODE` (any word you'll tell friends; not case-sensitive).
+3. **Volume**: add a volume to the service, mounted at `/data`, so conversations survive redeploys.
+4. **Settings → Networking → Generate Domain**, then share the link and the passcode.
+
+Without `ELPIS_PASSCODE` (like on your own machine) there's no passcode and a single user.
+
 ## How it's built
 
 FastAPI + Python backend, vanilla HTML/JS frontend, Claude for conversation, ElevenLabs for voice, and the Web Speech API for listening.

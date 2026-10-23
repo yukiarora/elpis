@@ -13,6 +13,18 @@
 <div class="phone" id="phone">
   <div class="status-bar"><span id="clock">9:41</span><img src="/assets/status-levels.svg" alt=""></div>
 
+  <!-- Passcode (only when the app is hosted with ELPIS_PASSCODE) -->
+  <section class="screen onboarding" id="locked" hidden>
+    <img src="/assets/icon.svg" class="onboard-icon" alt="">
+    <h1>Elpis</h1>
+    <p>Enter the passcode you were given.</p>
+    <form id="unlock-form">
+      <input id="pass-input" type="password" autocomplete="current-password" placeholder="Passcode" required>
+      <button class="pill-btn" type="submit">Continue</button>
+      <p class="pass-error" id="pass-error" hidden></p>
+    </form>
+  </section>
+
   <!-- Onboarding -->
   <section class="screen onboarding" id="onboarding" hidden>
     <img src="/assets/icon.svg" class="onboard-icon" alt="">
