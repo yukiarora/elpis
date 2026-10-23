@@ -81,7 +81,7 @@ function addElpis(text) { elpisRow().innerHTML = renderText(text); }
 function addUser(text, mode) {
   const row = document.createElement("div");
   row.className = `msg user${mode === "call" ? " call" : ""}`;
-  row.innerHTML = `<div class="body">${escapeHtml(text)}</div>`;
+  row.innerHTML = `<div class="body"><span>${escapeHtml(text)}</span></div>`;
   messagesEl.appendChild(row);
 }
 function addEvent(text) {
