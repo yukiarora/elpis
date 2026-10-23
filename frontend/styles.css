@@ -44,15 +44,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @media (max-width: 500px), (max-height: 860px) and (max-width: 500px) {
   body { display: block; }
   .phone { width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
-  .status-bar { display: none; }
+  .status-bar { display: none !important; }   /* a real phone draws its own */
 }
+/* iOS status bar, from Figma's Status Bar component: time centred in the left 140.5px, levels in the right 140.5px */
 .status-bar {
-  position: absolute; inset: 0 0 auto 0; height: 54px; z-index: 50;
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 32px 0 52px; font: 600 17px var(--sf); color: #fff; pointer-events: none;
+  position: absolute; inset: 0 0 auto 0; height: 54px; z-index: 50; pointer-events: none;
+  display: flex; justify-content: space-between;
 }
-.status-icons { display: flex; gap: 6px; align-items: center; }
-.status-icons svg { fill: #fff; color: #fff; }
+.status-bar #clock {
+  width: 140.5px; padding-top: 18px; text-align: center; color: #fff;
+  font: 590 17px/22px var(--sf); letter-spacing: 0;
+}
+.status-bar img { width: 140.5px; height: 54px; }
 
 .screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
 
