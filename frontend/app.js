@@ -181,7 +181,7 @@ async function sendMessage(text, { event } = {}) {
   maybeDivider(Date.now() / 1000);
   if (text) addUser(text);
   const body = elpisRow();
-  body.innerHTML = `<span class="typing"><i></i><i></i><i></i></span>`;
+  body.innerHTML = `<span class="thinking" role="status" aria-label="Elpis is thinking"></span>`;
   scrollDown();
   let acc = "";
   try {
