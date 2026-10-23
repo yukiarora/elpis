@@ -356,32 +356,166 @@ $("j-keep").onclick = async () => {
   const text = $("j-text").value.trim();
   if (!text) { $("j-text").focus(); return; }
   $("j-keep").disabled = true;
-  // Jump to Restworld right away; the card says "sketching..." until Claude finishes drawing.
-  await setTab("rw");   // let Restworld finish loading first, or it would wipe the sketching card
-  const placeholder = placePaper({ id: "pending", title: text.slice(0, 40) }, { pending: true });
+  await setTab("rw");   // let Restworld finish loading first
+  const studio = openStudio();
   try {
-    const moment = await api("/api/moments", { prompt: journalPrompt, text });
+    const moment = await streamSketch({ prompt: journalPrompt, text }, studio);
+    await studio.drawn();                 // let the crayon finish its last line
     state.moments += 1;
-    // the sketching card becomes the sketch right where it is floating
-    placeholder.m = moment; placeholder.pending = false; placeholder.tilt = tilt(moment.id);
-    placeholder.el.innerHTML = `<img alt="" src="${svgSrc(moment.svg)}"><div>${escapeHtml(moment.title.toLowerCase())}</div>`;
+    const at = await studio.flyAway();    // the big sheet shrinks into a floating paper
+    placePaper(moment, { at });
     $("j-text").value = "";   // ready for the next entry
-    $("j-keep").disabled = false;
     clearTransient();
     addEvent("✦ Kept in your Restworld", moment.title, openKept(moment.id, moment.title));
   } catch (e) {
-    placeholder.el.querySelector(".sketching").textContent = "couldn't sketch — try again";
-    placeholder.pending = false;   // not saved; it goes away the next time Restworld loads
+    console.error(e);
+    studio.fail();
+  } finally {
     $("j-keep").disabled = false;
   }
 };
+
+// Streams /api/moments: the caption first, then each shape of the sketch as Claude draws it.
+async function streamSketch(payload, studio) {
+  const res = await fetch("/api/moments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  if (res.status === 401) { showLocked(); throw new Error("locked"); }
+  if (!res.ok || !res.body) throw new Error("couldn't sketch");
+  const reader = res.body.getReader(), decoder = new TextDecoder();
+  let buf = "", done = null;
+  for (;;) {
+    const { value, done: end } = await reader.read();
+    if (end) break;
+    buf += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const raw = buf.slice(0, i); buf = buf.slice(i + 2);
+      const ev = /event: (\w+)/.exec(raw)?.[1];
+      const data = JSON.parse(/data: (.*)/s.exec(raw)?.[1] || "{}");
+      if (ev === "title") studio.setTitle(data.title);
+      else if (ev === "shape") studio.addShape(data.svg);
+      else if (ev === "done") done = data;
+    }
+  }
+  if (!done) throw new Error("connection dropped");
+  return done;
+}
+
+// ---------- Paper: glassy, translucent, with torn paper edges ----------
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SHAPE_TAGS = new Set(["path", "circle", "ellipse", "line", "polyline", "polygon", "rect"]);
+const SHAPE_ATTRS = new Set(["d", "points", "cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "width", "height",
+  "stroke-width", "fill", "fill-opacity", "opacity", "stroke-linecap", "stroke-linejoin"]);
+
+// Rebuild shapes from an allowlist (the server does the same) so only plain drawing reaches the page.
+function shapesFrom(svgText) {
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const out = [];
+  doc.querySelectorAll("*").forEach((node) => {
+    const tag = node.localName;
+    if (!SHAPE_TAGS.has(tag)) return;
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const { name, value } of [...node.attributes]) {
+      if (SHAPE_ATTRS.has(name) && /^[\w\s.,#\-]*$/.test(value)) el.setAttribute(name, value);
+    }
+    out.push(el);
+  });
+  return out;
+}
+function sketchSvg(shapes = []) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 200 200");
+  svg.classList.add("ink");
+  shapes.forEach((s) => svg.appendChild(s));
+  return svg;
+}
+
+// Torn paper edge: a polygon that wobbles a little along each side.
+function deckle(el) {
+  const w = el.offsetWidth, h = el.offsetHeight, amp = Math.max(1.4, Math.min(3.2, w / 90)), step = 7;
+  const pts = [], j = () => (Math.random() * amp).toFixed(1);
+  for (let x = 0; x <= w; x += step) pts.push(`${x}px ${j()}px`);
+  for (let y = step; y <= h; y += step) pts.push(`${w - j()}px ${y}px`);
+  for (let x = w - step; x >= 0; x -= step) pts.push(`${x}px ${h - j()}px`);
+  for (let y = h - step; y > 0; y -= step) pts.push(`${j()}px ${y}px`);
+  el.style.clipPath = `polygon(${pts.join(",")})`;
+}
+
+const CRAYON = `<svg viewBox="0 0 18 52" width="18" height="52" aria-hidden="true">
+  <path d="M5 13h8v35a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" fill="#8f7fc4"/>
+  <path d="M5 20h8v15H5z" fill="#fff" opacity=".75"/>
+  <path d="M5 13 9 1.5l4 11.5z" fill="#4b4266"/></svg>`;
+
+// The studio: one big sheet in the middle of Restworld where the crayon draws the new moment.
+function openStudio() {
+  const wrap = document.createElement("div");
+  wrap.className = "studio";
+  wrap.innerHTML = `<div class="paper big"><div class="sketch"></div><div class="cap">sketching…</div>
+    <div class="crayon idle">${CRAYON}</div></div>`;
+  $("rw").appendChild(wrap);
+  $("rw-empty").hidden = true;
+  const sheet = wrap.querySelector(".paper"), area = wrap.querySelector(".sketch"), crayon = wrap.querySelector(".crayon");
+  const svg = sketchSvg(); area.appendChild(svg);
+  deckle(sheet);
+  const tipAt = (x, y) => { crayon.style.transform = `translate(${x - 9}px, ${y - 1.5}px) rotate(28deg)`; };
+  const toSheet = (pt) => {   // svg user units -> sheet pixels
+    const a = area.getBoundingClientRect(), s = sheet.getBoundingClientRect(), k = a.width / 200;
+    return [a.left - s.left + pt.x * k, a.top - s.top + pt.y * k];
+  };
+  tipAt(sheet.offsetWidth * 0.62, sheet.offsetHeight * 0.42);
+  let queue = Promise.resolve();
+
+  function drawOne(shape) {
+    return new Promise((resolve) => {
+      crayon.classList.remove("idle");
+      svg.appendChild(shape);
+      let len = 0;
+      try { len = shape.getTotalLength(); } catch {}
+      if (!len || calm) { shape.style.opacity = 1; return resolve(); }
+      const fillOpacity = shape.getAttribute("fill-opacity");
+      shape.style.strokeDasharray = len; shape.style.strokeDashoffset = len;
+      if (fillOpacity) shape.style.fillOpacity = 0;
+      const dur = Math.max(350, Math.min(1600, len * 7)), t0 = performance.now();
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / dur);
+        shape.style.strokeDashoffset = len * (1 - p);
+        tipAt(...toSheet(shape.getPointAtLength(len * p)));
+        if (p < 1) return requestAnimationFrame(tick);
+        if (fillOpacity) { shape.style.transition = "fill-opacity .5s"; shape.style.fillOpacity = fillOpacity; }
+        resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  return {
+    setTitle(t) { wrap.querySelector(".cap").textContent = t; },
+    addShape(svgText) {
+      for (const shape of shapesFrom(`<svg xmlns="${SVG_NS}">${svgText}</svg>`)) queue = queue.then(() => drawOne(shape));
+    },
+    async drawn() { await queue; crayon.classList.add("done"); await wait(500); },
+    async flyAway() {
+      const s = sheet.getBoundingClientRect(), r = $("rw").getBoundingClientRect();
+      sheet.style.transition = "transform .7s cubic-bezier(.4,0,.2,1), opacity .7s";
+      sheet.style.transform = `scale(${CARD_W / sheet.offsetWidth}) rotate(-4deg)`;
+      sheet.style.opacity = 0.6;
+      await wait(700);
+      wrap.remove();
+      return { x: s.left - r.left + s.width / 2 - rw.panX, y: s.top - r.top + s.height / 2 - rw.panY };
+    },
+    fail() {
+      wrap.querySelector(".cap").textContent = "couldn't sketch this time — try again?";
+      crayon.remove();
+      setTimeout(() => wrap.remove(), 2500);
+    },
+  };
+}
 
 // ---------- Restworld: paper cards floating on water ----------
 // Each card wanders on its own slowly-turning heading, sways a little, eases away from the edges
 // and from other cards (so nothing stacks). Drag a card to move just that card; drag empty space
 // to look around when there are more cards than fit. Tap a card to hold it close.
 
-const svgSrc = (svg) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 const CARD_W = 88, CARD_H = 112, SPEED = 9, PERSONAL_SPACE = 118, EDGE = 56;
 const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const rw = { cards: [], panX: 0, panY: 0, W: 0, H: 0, worldW: 0, worldH: 0, raf: 0, last: 0, z: 1, t: 0 };
@@ -408,23 +542,24 @@ function openSpot() {
   return best;
 }
 
-function placePaper(m, { pending, fresh } = {}) {
+function placePaper(m, { fresh, at } = {}) {
   sizeWorld();
   const el = document.createElement("div");
   el.className = "paper";
-  el.innerHTML = (pending ? `<div class="sketching">sketching...</div>` : `<img alt="" src="${svgSrc(m.svg)}">`) +
-    `<div>${escapeHtml((m.title || "").toLowerCase())}</div>`;
-  const spot = openSpot();
+  el.innerHTML = `<div class="sketch"></div><div class="cap">${escapeHtml((m.title || "").toLowerCase())}</div>`;
+  el.querySelector(".sketch").appendChild(sketchSvg(shapesFrom(m.svg || "")));
+  const spot = at || openSpot();
   const card = {
-    m, el, pending, x: spot.x, y: spot.y, vx: 0, vy: 0,
+    m, el, x: spot.x, y: spot.y, vx: 0, vy: 0,
     heading: Math.random() * Math.PI * 2, turn: 0, tilt: tilt(m.id), phase: Math.random() * 6,
     remove() { el.remove(); rw.cards = rw.cards.filter((c) => c !== card); },
   };
-  if (pending || fresh) {   // glide in from the right edge, like the original
-    card.x = rw.W - rw.panX; card.heading = Math.PI + (Math.random() - 0.5) * 0.6; card.vx = -60;   // half-visible at the right edge
+  if (fresh && !at) {   // glide in from the right edge
+    card.x = rw.W - rw.panX; card.heading = Math.PI + (Math.random() - 0.5) * 0.6; card.vx = -60;
   }
   el.addEventListener("pointerdown", (e) => startCardDrag(e, card));
   $("rw-canvas").appendChild(el);
+  deckle(el);
   rw.cards.push(card);
   $("rw-empty").hidden = true;
   render(card);
@@ -466,7 +601,7 @@ function step(dt) {
     }
     c.x += c.vx * dt; c.y += c.vy * dt;
     // soft walls
-    c.x = Math.max(CARD_W / 2, Math.min(rw.worldW - CARD_W / 2 + (c.pending || c.vx < -20 ? CARD_W * 2 : 0), c.x));
+    c.x = Math.max(CARD_W / 2, Math.min(rw.worldW - CARD_W / 2 + (c.vx < -20 ? CARD_W * 2 : 0), c.x));
     c.y = Math.max(CARD_H / 2, Math.min(rw.worldH - CARD_H / 2, c.y));
   }
   rw.cards.forEach(render);
@@ -485,7 +620,7 @@ function startFloat() {
 }
 
 async function loadRestworld() {
-  if (rw.cards.some((c) => c.pending)) { startFloat(); return; }   // a card is being drawn right now
+  if ($("rw").querySelector(".studio")) { startFloat(); return; }   // a sketch is being drawn right now
   $("rw-canvas").innerHTML = "";
   rw.cards = []; rw.panX = 0; rw.panY = 0;
   const moments = await api("/api/moments");
@@ -516,7 +651,7 @@ function startCardDrag(e, card) {
     window.removeEventListener("pointerup", up);
     card.dragging = false;
     card.el.classList.remove("lifted");
-    if (!moved) { if (!card.pending) holdClose(card.m); return; }
+    if (!moved) { holdClose(card.m); return; }
     // let go: it keeps a little of your flick, then settles back into drifting
     const cap = 220, sp = Math.hypot(vel.x, vel.y), k = sp > cap ? cap / sp : 1;
     card.vx = vel.x * k; card.vy = vel.y * k;
@@ -547,15 +682,18 @@ function startCardDrag(e, card) {
 // tap a memory to hold it close
 function holdClose(m) {
   const hold = $("rw-hold");
-  hold.innerHTML = `<div class="paper"><img alt="" src="${svgSrc(m.svg)}"><div>${escapeHtml(m.title.toLowerCase())}</div>
+  hold.innerHTML = `<div class="paper"><div class="sketch"></div><div class="cap">${escapeHtml(m.title.toLowerCase())}</div>
     <div class="note">${m.prompt ? `<i>${escapeHtml(m.prompt)}</i>\n` : ""}${escapeHtml(m.text)}</div>
     <button class="let-go">let this one go</button></div>`;
+  hold.querySelector(".sketch").appendChild(sketchSvg(shapesFrom(m.svg || "")));
   hold.hidden = false;
+  deckle(hold.querySelector(".paper"));
   hold.onclick = (e) => { if (e.target === hold) hold.hidden = true; };
   // Ask inside the card, not with a browser popup
   hold.querySelector(".let-go").onclick = (e) => {
     e.currentTarget.outerHTML = `<div class="confirm-go"><span>Let this one go?</span>
       <button class="keep-it">Keep it</button><button class="go">Let go</button></div>`;
+    deckle(hold.querySelector(".paper"));
     hold.querySelector(".keep-it").onclick = () => holdClose(m);
     hold.querySelector(".go").onclick = async () => {
       await api(`/api/moments/${m.id}`, null, "DELETE");

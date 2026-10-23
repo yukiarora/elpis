@@ -96,7 +96,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   display: flex; flex-direction: column;
 }
 .messages > .day { margin: 16px auto 6px; }
-.messages > .event { margin: 8px auto; }
+.messages > .event { margin: 8px 24px 8px 47px; }
 .messages > .card { margin-top: 4px; margin-bottom: 8px; }
 .messages::-webkit-scrollbar { display: none; }
 /* Figma text style "Body 1/Regular/18/20" — shared by Elpis and user messages */
@@ -137,7 +137,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .day { align-self: center; font-size: 14px; line-height: 18px; color: rgba(255, 255, 255, 0.75); }
 .day b { font-weight: 600; }
 /* System notes (kept a moment, call ended, breathing) — same quiet style as the timestamps, no box */
-.event { align-self: center; max-width: 80%; display: flex; gap: 6px; text-align: left; font-size: 14px; line-height: 18px; color: rgba(255, 255, 255, 0.75); }
+/* Left-aligned with Elpis's text column (x = 47, where "How…" starts) */
+.event { align-self: stretch; display: flex; gap: 6px; text-align: left; font-size: 14px; line-height: 18px; color: rgba(255, 255, 255, 0.75); }
 .event .ev-icon { flex: none; }   /* star stays beside the first line; wrapped lines align with the text */
 .event b { font-weight: 600; }
 button.event { cursor: pointer; }
@@ -291,18 +292,34 @@ button.event:hover { color: #fff; }
 .rw { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; isolation: isolate; }   /* card z-indexes stay inside, under the hold overlay */
 .rw.dragging { cursor: grabbing; }
 .rw-canvas { position: absolute; inset: 0; }
+/* Paper: white, translucent, glassy, with torn edges (clip-path set by deckle() in app.js) — not a card */
+:root { --ink: #4b4266; }
 .paper {
-  position: absolute; width: 88px; padding: 7px 7px 9px; border-radius: 5px;
-  background: #f6f3ee; color: #6d6878; box-shadow: 0 10px 24px rgba(30, 20, 50, 0.3);
-  text-align: center; font-size: 9px; line-height: 1.25; cursor: pointer; user-select: none;
-  transition: box-shadow .3s ease;
+  position: absolute; width: 88px; padding: 8px 8px 10px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.5) 100%);
+  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+  color: var(--ink); text-align: center; font-size: 9px; line-height: 1.25; cursor: pointer; user-select: none;
 }
-.paper:hover { box-shadow: 0 16px 34px rgba(30, 20, 50, 0.4); }
-.paper img { width: 100%; aspect-ratio: 1; display: block; filter: invert(1) brightness(1.6) opacity(0.75); pointer-events: none; }
-.paper .sketching { width: 100%; aspect-ratio: 1; display: grid; place-items: center; color: #aaa4b4; font-size: 10px; animation: blink 1.4s infinite; }
+.paper .sketch { width: 100%; aspect-ratio: 1; }
+.paper .cap { margin-top: 2px; opacity: 0.85; }
+/* Crayon ink: the sketch's white lines and soft fills drawn in deep purple, with a waxy edge */
+.ink { display: block; width: 100%; height: 100%; overflow: visible; filter: url(#crayon);
+  fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.ink * { stroke: var(--ink); }
+.ink [fill="white"] { fill: var(--ink); }
 /* Cards are moved by JS (see "Restworld" in app.js); lifted while being dragged */
 .rw-canvas .paper { left: 0; top: 0; touch-action: none; will-change: transform; }
-.rw-canvas .paper.lifted { box-shadow: 0 22px 40px rgba(30, 20, 50, 0.45); cursor: grabbing; }
+.rw-canvas .paper.lifted { background: linear-gradient(160deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.5)); cursor: grabbing; }
+
+/* Studio: one big sheet in the middle, zoomed in on the sketch, with a single small caption at the bottom */
+.studio { position: absolute; inset: 0; display: grid; place-items: center; z-index: 4; pointer-events: none; }
+.studio .paper.big { position: relative; width: 300px; padding: 22px 22px 18px; font-size: 14px; cursor: default; transform: rotate(-1.2deg); animation: sheet-in .5s ease; }
+.studio .paper.big .cap { margin-top: 10px; }
+@keyframes sheet-in { from { transform: scale(.9) rotate(-1.2deg); opacity: 0; } }
+.crayon { position: absolute; left: 0; top: 0; width: 18px; height: 52px; transform-origin: 9px 1.5px; filter: drop-shadow(2px 4px 4px rgba(40, 25, 70, 0.3)); transition: opacity .4s; }
+.crayon.idle svg { animation: hover 1.6s ease-in-out infinite; }
+.crayon.done { opacity: 0; }
+@keyframes hover { 50% { transform: translate(3px, -4px); } }
 .rw-empty { position: absolute; inset: 40% 30px auto; text-align: center; color: var(--text-dim); line-height: 1.5; }
 .rw-hint { position: absolute; bottom: 26px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,0.5); margin: 0; pointer-events: none; }
 /* Covers the whole screen (header included) with a blurred tint of the app gradient, so there's no hard edge */
@@ -311,10 +328,10 @@ button.event:hover { color: #fff; }
   background: linear-gradient(180deg, rgba(154, 139, 192, 0.55) 0%, rgba(72, 65, 90, 0.7) 100%);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
-.rw-hold .paper { position: relative; width: 280px; font-size: 15px; padding: 18px 18px 20px; transform: rotate(-1.5deg); cursor: default; }
-.rw-hold .paper .note { margin-top: 10px; color: #8a8496; font-size: 13px; text-align: left; white-space: pre-wrap; }
-.rw-hold .paper .let-go { margin-top: 14px; font-size: 12px; color: #a39cb0; text-decoration: underline; }
-.rw-hold .confirm-go { margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: #6d6878; }
+.rw-hold .paper { position: relative; width: 280px; font-size: 15px; padding: 20px 20px 22px; transform: rotate(-1.5deg); cursor: default; }
+.rw-hold .paper .note { margin-top: 10px; color: var(--ink); opacity: .8; font-size: 13px; text-align: left; white-space: pre-wrap; }
+.rw-hold .paper .let-go { margin-top: 14px; font-size: 12px; color: var(--ink); opacity: .6; text-decoration: underline; }
+.rw-hold .confirm-go { margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: var(--ink); }
 .rw-hold .confirm-go button { padding: 6px 12px; border-radius: 14px; font-size: 13px; }
 .rw-hold .confirm-go .keep-it { background: #4d4466; color: #fff; }
 .rw-hold .confirm-go .go { color: #8a8496; text-decoration: underline; }

@@ -356,27 +356,73 @@ class MomentIn(BaseModel):
     text: str
 
 
+# A sketch streams in shape by shape so the app can draw each one with a crayon as Claude makes it.
+# Every shape is rebuilt from an allowlist of tags and attribute values before it leaves the server.
+SHAPE_RE = re.compile(r"<(path|circle|ellipse|line|polyline|polygon|rect)\b([^<>]*?)/?>", re.I)
+ATTR_RE = re.compile(r'([a-zA-Z][a-zA-Z0-9-]*)\s*=\s*"([^"]*)"')   # names like x1, y2 have digits
+NUM = r"-?\d+(?:\.\d+)?"
+ATTR_OK = {
+    "d": re.compile(r"[MmLlHhVvCcSsQqTtAaZz0-9\s,.\-eE]{1,4000}"),
+    "points": re.compile(r"[0-9\s,.\-eE]{1,2000}"),
+    **{k: re.compile(NUM) for k in ("cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2",
+                                     "width", "height", "stroke-width", "fill-opacity", "opacity")},
+    "fill": re.compile(r"none|white|#[0-9a-fA-F]{3,6}"),
+    "stroke-linecap": re.compile(r"round|butt|square"),
+    "stroke-linejoin": re.compile(r"round|miter|bevel"),
+}
+SVG_OPEN = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke="white" '
+            'stroke-width="4" stroke-linecap="round" stroke-linejoin="round">')
+
+
+def _clean_shape(tag, attrs):
+    kept = [f'{k}="{v}"' for k, v in ATTR_RE.findall(attrs) if k in ATTR_OK and ATTR_OK[k].fullmatch(v.strip())]
+    return f"<{tag.lower()} {' '.join(kept)}/>" if kept else None
+
+
 @app.post("/api/moments")
 def keep_moment(body: MomentIn, uid: str = Depends(current_uid)):
     text = body.text.strip()[:1000]
     if not text:
         raise HTTPException(400, "Write a little something first")
-    title, svg = "A moment I kept", None
-    try:
-        response = client.messages.create(
-            model=MODEL, max_tokens=4000, system=load("sketch"),
-            messages=[{"role": "user", "content": f"Question: {body.prompt or ''}\nWhat she wrote: {text}"}],
-        )
-        raw = "".join(b.text for b in response.content if b.type == "text")
-        data = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
-        title = (data.get("title") or title).strip()[:60]
-        svg = _safe_svg(data.get("svg"))
-    except Exception:
-        log.exception("Sketch generation failed; using fallback sketch")
-    moment_id = db.add_moment(uid, title, body.prompt, text, svg or FALLBACK_SVG)
-    db.add_message(uid, "event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"',
-                   meta={"moment_id": moment_id})
-    return next(m for m in db.moments(uid) if m["id"] == moment_id)
+
+    def stream():
+        title, shapes, buf, pos = None, [], "", 0
+        try:
+            with client.messages.stream(
+                model=MODEL, max_tokens=4000, system=load("sketch"),
+                messages=[{"role": "user", "content": f"Question: {body.prompt or ''}\nWhat she wrote: {text}"}],
+            ) as s:
+                for chunk in s.text_stream:
+                    buf += chunk
+                    if title is None and "\n" in buf:
+                        m = re.search(r"TITLE:\s*(.+)", buf)
+                        if m:
+                            title = m.group(1).strip().strip('"').lower()[:60]
+                            yield _sse("title", {"title": title})
+                    for m in SHAPE_RE.finditer(buf, pos):
+                        if not m.group(0).endswith(">"):
+                            break
+                        pos = m.end()
+                        shape = _clean_shape(m.group(1), m.group(2))
+                        if shape and len(shapes) < 40:
+                            shapes.append(shape)
+                            yield _sse("shape", {"svg": shape})
+        except Exception:
+            log.exception("Sketch generation failed; using fallback sketch")
+        if not shapes:   # nothing usable came back: draw the little sun instead
+            shapes = [_clean_shape(m.group(1), m.group(2)) for m in SHAPE_RE.finditer(FALLBACK_SVG)]
+            shapes = [x for x in shapes if x]
+            for shape in shapes:
+                yield _sse("shape", {"svg": shape})
+        title = title or "a moment i kept"
+        svg = SVG_OPEN + "".join(shapes) + "</svg>"
+        moment_id = db.add_moment(uid, title, body.prompt, text, svg)
+        db.add_message(uid, "event", f'She kept a moment in her Restworld: "{title}" — "{text[:200]}"',
+                       meta={"moment_id": moment_id})
+        yield _sse("done", next(m for m in db.moments(uid) if m["id"] == moment_id))
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/moments")

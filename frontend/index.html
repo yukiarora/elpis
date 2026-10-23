@@ -10,6 +10,13 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+<!-- Crayon texture for sketches: a slightly waxy, uneven line -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="crayon" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="noise"/>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
 <div class="phone" id="phone">
   <div class="status-bar"><span id="clock">9:41</span><img src="/assets/status-levels.svg" alt=""></div>
 
