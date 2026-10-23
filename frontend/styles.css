@@ -14,8 +14,9 @@
   --end-red: #ff3b30;
   --chip-border: rgba(255, 255, 255, 0.3);
   --chip-bg: rgba(255, 255, 255, 0.1);
-  --font: "Apercu", "Albert Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  --sf: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Albert Sans", system-ui, sans-serif;
+  /* Avenir Next Medium (built into iPhone/Mac); Nunito Sans is the look-alike for other devices */
+  --font: "Avenir Next", "Avenir", "Nunito Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --sf: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Nunito Sans", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -23,6 +24,7 @@ html, body { margin: 0; height: 100%; }
 body {
   background: #1d1a24;
   font-family: var(--font);
+  font-weight: 500;   /* Avenir Next Medium */
   color: var(--text);
   display: grid;
   place-items: center;
@@ -68,7 +70,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .onboarding input {
   width: 100%; max-width: 280px; height: 44px; border-radius: 22px; text-align: center;
   border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.12);
-  color: #fff; font: 17px var(--font); outline: none;
+  color: #fff; font: 500 17px var(--font); outline: none;
 }
 .onboarding input::placeholder { color: rgba(255,255,255,0.45); }
 .pill-btn {
@@ -135,7 +137,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .day { align-self: center; font-size: 14px; line-height: 18px; color: rgba(255, 255, 255, 0.75); }
 .day b { font-weight: 600; }
 /* System notes (kept a moment, call ended, breathing) — same quiet style as the timestamps, no box */
-.event { align-self: center; max-width: 80%; text-align: center; font-size: 14px; line-height: 18px; color: rgba(255, 255, 255, 0.75); }
+.event { align-self: center; max-width: 80%; display: flex; gap: 6px; text-align: left; font-size: 14px; line-height: 18px; color: rgba(255, 255, 255, 0.75); }
+.event .ev-icon { flex: none; }   /* star stays beside the first line; wrapped lines align with the text */
 .event b { font-weight: 600; }
 button.event { cursor: pointer; }
 button.event:hover { color: #fff; }
@@ -179,7 +182,7 @@ button.event:hover { color: #fff; }
 .type-area.active { background: var(--input-active-bg); color: #fff; }
 .type-area textarea {
   flex: 1; resize: none; border: 0; outline: none; background: transparent;
-  color: inherit; font: 20px/1.2 var(--font); max-height: 120px; padding: 6px 0;
+  color: inherit; font: 500 20px/1.2 var(--font); max-height: 120px; padding: 6px 0;
 }
 .type-area textarea::placeholder { color: var(--input-fg); }
 .type-area .icon-btn { color: var(--input-fg); }
@@ -278,7 +281,7 @@ button.event:hover { color: #fff; }
 .j-write textarea {
   flex: 1; resize: none; outline: none; border-radius: 14px; padding: 16px;
   border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.08);
-  color: #fff; font: 16px/1.4 var(--font);
+  color: #fff; font: 500 16px/1.4 var(--font);
 }
 .j-write textarea::placeholder { color: rgba(255,255,255,0.4); }
 .keep { margin-top: 16px; height: 46px; border-radius: 14px; background: rgba(255,255,255,0.22); font-size: 15px; font-weight: 600; }

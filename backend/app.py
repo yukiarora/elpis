@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import time
+import unicodedata
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -196,8 +197,8 @@ EVENT_NOTES = {
     "onboard": "She just opened Elpis for the first time and told you her name — this is the very start. "
                "Welcome her sweetly and warmly in 2-3 sentences and ask one gentle question about how she's doing. "
                "Offer easy suggestions.",
-    "call_start": "She just started a voice call with you. Greet her the way a caring friend picks up the phone — "
-                  "two or three warm sentences, using what you know about her.",
+    "call_start": "She just started a voice call with you. Greet her the way a close friend picks up the phone — "
+                  "one or two warm, casual sentences, using what you know about her.",
 }
 
 
@@ -261,21 +262,57 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# ---------- onboarding: Elpis opens the chat by asking her name ----------
+
+INTRO = "Hi, hello! I'm Elpis, your companion on this journey. What would you like me to call you?"
+WELCOME = [
+    "Nice to meet you, {name}!",
+    "Your privacy matters here. What we discuss here is safe and secure. "
+    "Feel free to call me whenever you'd like. I'm here as a friend.",
+    "Whenever you want, tap the **+** at the top for little tools: mood check-ins, journaling, breathing and more. "
+    "So tell me, how are you feeling right now?",
+]
+WELCOME_SUGGESTIONS = ["Pretty good today", "A little better", "Not sure yet"]
+NAME_LEAD = re.compile(r"^(?:(?:hi|hello|hey|hiya)[\s,!.]*)*(?:you can |please )?(?:call me|i'?m|i am|my name is|my name's|it'?s|name'?s|this is)?\s*", re.I)
+
+
+def _parse_name(reply):
+    """'Call me, W' -> 'W'; 'hey I'm sarah!' -> 'Sarah'. Falls back to the reply itself."""
+    rest = NAME_LEAD.sub("", reply.strip())
+    keep = lambda ch: unicodedata.category(ch)[0] in "LMN" or ch in "'-"   # letters (any script), marks, digits
+    words = ["".join(ch for ch in w if keep(ch)) for w in rest.split()]
+    name = " ".join(w for w in words if w)[:24]
+    name = " ".join(name.split()[:2])
+    if not name:
+        return "friend"   # she didn't give one; Elpis still greets her warmly
+    return name[:1].upper() + name[1:]
+
+
 class NameIn(BaseModel):
-    name: str
+    text: str
 
 
 @app.post("/api/onboard")
 def onboard(body: NameIn, uid: str = Depends(current_uid)):
-    name = body.name.strip()[:40]
-    if not name:
+    reply = body.text.strip()[:200]
+    if not reply:
         raise HTTPException(400, "Name required")
+    name = _parse_name(reply)
     db.set_name(uid, name)
-    return {"name": name}
+    db.add_message(uid, "user", reply)
+    out = []
+    for i, line in enumerate(WELCOME):
+        last = i == len(WELCOME) - 1
+        meta = {"suggestions": WELCOME_SUGGESTIONS} if last else None
+        text = line.format(name=name)
+        out.append({"id": db.add_message(uid, "assistant", text, meta=meta), "text": text, **(meta or {})})
+    return {"name": name, "messages": out}
 
 
 @app.get("/api/state")
 def state(uid: str = Depends(current_uid)):
+    if not db.get_name(uid) and not db.all_messages(uid, limit=1):
+        db.add_message(uid, "assistant", INTRO)   # the very first thing she sees
     msgs = [{"id": m["id"], "role": m["role"], "content": m["content"], "mode": m["mode"],
              "meta": m["meta"], "created_at": m["created_at"]} for m in db.all_messages(uid)]
     return {"name": db.get_name(uid), "messages": msgs, "moments": len(db.moments(uid)),

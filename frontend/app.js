@@ -18,7 +18,7 @@ function renderText(s) {
 function plainText(s) { return s.replace(/\*\*?(.+?)\*\*?/g, "$1"); }
 
 function show(screenId) {
-  for (const id of ["locked", "onboarding", "chat", "call", "breathe", "journal"]) $(id).hidden = id !== screenId;
+  for (const id of ["locked", "chat", "call", "breathe", "journal"]) $(id).hidden = id !== screenId;
 }
 function tickClock() {
   const d = new Date();
@@ -90,7 +90,10 @@ function addUser(text, mode) {
 function addEvent(label, detail, onClick) {
   const el = document.createElement(onClick ? "button" : "div");
   el.className = "event";
-  el.innerHTML = `<b>${escapeHtml(label)}</b>${detail ? ` · ${escapeHtml(detail)}` : ""}`;
+  const icon = label.startsWith("✦ ") ? "✦" : "";
+  if (icon) label = label.slice(2);
+  el.innerHTML = (icon ? `<span class="ev-icon">${icon}</span>` : "") +
+    `<span class="ev-text"><b>${escapeHtml(label)}</b>${detail ? ` · ${escapeHtml(detail)}` : ""}</span>`;
   if (onClick) el.onclick = onClick;
   messagesEl.appendChild(el);
 }
@@ -145,7 +148,7 @@ function renderAfter(meta, { live } = {}) {
   if (meta.action === "journal" && meta.journal_prompt) chips.push({ label: "✎ Write about this", act: true, run: () => openJournal(meta.journal_prompt) });
   else if (meta.action === "rest_world" && state.moments > 0) chips.push({ label: "✦ Visit your Restworld", act: true, run: () => openJournal(null, "rw") });
   else if (meta.action === "breathe") chips.push({ label: "≋ Breathing space", act: true, run: openBreathe });
-  for (const s of meta.suggestions || []) chips.push({ label: s, run: () => sendMessage(s) });
+  for (const s of meta.suggestions || []) chips.push({ label: s, run: () => (state.name ? sendMessage(s) : introduce(s)) });
   if (!chips.length) return;
   const wrap = document.createElement("div");
   wrap.className = "chips";
@@ -241,7 +244,7 @@ $("composer").addEventListener("submit", (e) => {
   const text = input.value.trim();
   if (!text || state.busy) return;
   input.value = ""; syncComposer();
-  sendMessage(text);
+  if (!state.name) introduce(text); else sendMessage(text);
 });
 
 // Dictation into the text box
@@ -279,19 +282,34 @@ $("unlock-form").addEventListener("submit", async (e) => {
   boot();
 });
 
-// ---------- onboarding ----------
+// ---------- onboarding: Elpis asks her name in the chat ----------
+// Her first reply is her name; Elpis answers with a short scripted welcome, one bubble at a time.
 
-$("onboard-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const name = $("name-input").value.trim();
-  if (!name) return;
-  await api("/api/onboard", { name });
-  state.name = name;
-  show("chat");
-  messagesEl.innerHTML = "";
-  lastStamp = null;
-  sendMessage(`Hi, my name is ${name}`, { event: "onboard" });   // Elpis answers right away — no blank screen
-});
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function introduce(text) {
+  if (state.busy) return;
+  state.busy = true;
+  clearTransient();
+  maybeDivider(Date.now() / 1000);
+  addUser(text);
+  try {
+    const { name, messages } = await api("/api/onboard", { text });
+    state.name = name;
+    for (const m of messages) {
+      const body = elpisRow();
+      body.innerHTML = `<span class="thinking" role="status" aria-label="Elpis is thinking"></span>`;
+      scrollDown();
+      await wait(700 + Math.min(1400, m.text.length * 12));
+      body.innerHTML = renderText(m.text);
+      scrollDown();
+    }
+    renderAfter(messages[messages.length - 1], { live: true });
+  } catch (e) {
+    console.error(e);
+  } finally {
+    state.busy = false;
+  }
+}
 
 // ---------- + menu ----------
 
@@ -797,9 +815,7 @@ async function boot() {
   try {
     if ((await api("/api/access")).locked) { showLocked(); return; }
     const s = await loadState();
-    if (!s.name) { show("onboarding"); setTimeout(() => $("name-input").focus(), 100); return; }
-    show("chat");
-    if (!s.messages.length) sendMessage(null, { event: "onboard" });
+    show("chat");   // a brand-new visitor sees Elpis asking her name (added by the server)
   } catch (e) {
     if (e.message === "locked") return;
     document.body.innerHTML = `<p style="color:#fff;padding:24px">Elpis couldn't start: ${escapeHtml(e.message)}</p>`;
