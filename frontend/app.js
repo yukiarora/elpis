@@ -91,21 +91,29 @@ function addEvent(text) {
 }
 function clearTransient() { messagesEl.querySelectorAll(".chips").forEach((el) => el.remove()); }
 
-// "Today" / "Yesterday" / date dividers, like the original app
-let lastDay = null;
-function dayLabel(t) {
-  const d = new Date(t * 1000), today = new Date();
-  const y = new Date(); y.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return "Today";
-  if (d.toDateString() === y.toDateString()) return "Yesterday";
-  return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+// iMessage-style timestamps: "Today 9:41 AM", "Yesterday 9:41 AM", "Tuesday 9:41 AM", "Mon, Oct 13 at 9:41 AM".
+// A new one appears when the day changes or after an hour of quiet, like Messages.
+let lastStamp = null;
+function stampParts(t) {
+  const d = new Date(t * 1000), now = new Date();
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const daysAgo = Math.round((startOf(now) - startOf(d)) / 86400000);
+  if (daysAgo === 0) return ["Today", time];
+  if (daysAgo === 1) return ["Yesterday", time];
+  if (daysAgo < 7) return [d.toLocaleDateString(undefined, { weekday: "long" }), time];
+  const opts = { weekday: "short", month: "short", day: "numeric" };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return [d.toLocaleDateString(undefined, opts), `at ${time}`];
 }
 function maybeDivider(t) {
-  const key = new Date(t * 1000).toDateString();
-  if (key === lastDay) return;
-  lastDay = key;
+  const prev = lastStamp;
+  lastStamp = t;
+  if (prev && new Date(prev * 1000).toDateString() === new Date(t * 1000).toDateString() && t - prev < 3600) return;
+  const [day, time] = stampParts(t);
   const el = document.createElement("div");
-  el.className = "day"; el.textContent = dayLabel(t);
+  el.className = "day";
+  el.innerHTML = `<b>${escapeHtml(day)}</b> ${escapeHtml(time)}`;
   messagesEl.appendChild(el);
 }
 
@@ -145,7 +153,7 @@ async function loadState() {
   const s = await api("/api/state");
   Object.assign(state, { name: s.name, voice: s.voice, moments: s.moments });
   messagesEl.innerHTML = "";
-  lastDay = null;
+  lastStamp = null;
   let lastMode = "chat";
   s.messages.forEach((m, i) => {
     maybeDivider(m.created_at);
@@ -246,7 +254,7 @@ $("onboard-form").addEventListener("submit", async (e) => {
   state.name = name;
   show("chat");
   messagesEl.innerHTML = "";
-  lastDay = null;
+  lastStamp = null;
   sendMessage(`Hi, my name is ${name}`, { event: "onboard" });   // Elpis answers right away — no blank screen
 });
 
