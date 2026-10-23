@@ -84,11 +84,15 @@ function addUser(text, mode) {
   row.innerHTML = `<div class="body"><span>${escapeHtml(text)}</span></div>`;
   messagesEl.appendChild(row);
 }
-function addEvent(text) {
-  const el = document.createElement("div");
-  el.className = "event"; el.textContent = text;
+// Quiet system note in the timestamp style: bold label, then detail. Optionally tappable.
+function addEvent(label, detail, onClick) {
+  const el = document.createElement(onClick ? "button" : "div");
+  el.className = "event";
+  el.innerHTML = `<b>${escapeHtml(label)}</b>${detail ? ` · ${escapeHtml(detail)}` : ""}`;
+  if (onClick) el.onclick = onClick;
   messagesEl.appendChild(el);
 }
+const openKept = () => openJournal(null, "rw");
 function clearTransient() { messagesEl.querySelectorAll(".chips").forEach((el) => el.remove()); }
 
 // iMessage-style timestamps: "Today 9:41 AM", "Yesterday 9:41 AM", "Tuesday 9:41 AM", "Mon, Oct 13 at 9:41 AM".
@@ -164,7 +168,7 @@ async function loadState() {
       addElpis(m.content);
       if (m.meta?.safety) addSafetyCard(m.meta.safety);
     } else if (m.role === "event" && /^(She kept|Voice call ended|She did a breathing)/.test(m.content)) {
-      addEvent(eventLabel(m.content));
+      addEvent(...eventParts(m.content));
     }
     // Suggestions + action survive refresh, but only for the latest Elpis message.
     if (i === s.messages.length - 1 && m.role === "assistant") renderAfter(m.meta || {});
@@ -172,11 +176,12 @@ async function loadState() {
   scrollDown();
   return s;
 }
-function eventLabel(text) {
-  if (text.startsWith("She kept")) return "✦ " + (/"([^"]+)"/.exec(text)?.[1] || "Moment") + " kept in your Restworld";
-  if (text.startsWith("Voice call ended")) return text.replace("Voice call ended", "Call ended").replace(/\.$/, "");
-  if (text.startsWith("She did a breathing")) return "Breathing space · " + (/for (.+?)\./.exec(text)?.[1] || "");
-  return text;
+// Stored event text -> [label, detail, onClick]
+function eventParts(text) {
+  if (text.startsWith("She kept")) return ["✦ Kept in your Restworld", /"([^"]+)"/.exec(text)?.[1], openKept];
+  if (text.startsWith("Voice call ended")) return ["Call ended", /\((.+?)\)/.exec(text)?.[1]];
+  if (text.startsWith("She did a breathing")) return ["Breathing space", /for (.+?)\.?$/.exec(text)?.[1]];
+  return [text];
 }
 
 // ---------- sending ----------
@@ -311,7 +316,7 @@ $("j-keep").onclick = async () => {
     placeholder.remove();
     placePaper(moment, { fresh: true });
     clearTransient();
-    addEvent(`✦ ${moment.title} kept in your Restworld`);
+    addEvent("✦ Kept in your Restworld", moment.title, openKept);
   } catch (e) {
     placeholder.querySelector(".sketching").textContent = "couldn't sketch — try again";
     $("j-keep").disabled = false;
@@ -470,8 +475,9 @@ function finishBreathe(t) {
   cancelAnimationFrame(br.raf); stopSound(); br.running = false;
   if (t > 15) {
     const m = Math.floor(t / 60), s = Math.round(t % 60);
-    logEvent(`She did a breathing exercise for ${m ? `${m} min ` : ""}${s} sec.`);
-    addEvent(`Breathing space · ${m ? `${m} min ` : ""}${s} sec`);
+    const dur = [m && `${m} min`, s && `${s} sec`].filter(Boolean).join(" ");
+    logEvent(`She did a breathing exercise for ${dur}.`);
+    addEvent("Breathing space", dur);
     $("breathe-done").hidden = false;
   } else {
     show("chat");
