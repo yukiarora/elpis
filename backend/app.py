@@ -180,6 +180,32 @@ def _split_reply(full):
                      "journal_prompt": meta.get("journal_prompt") if action == "journal" else None}
 
 
+# Safety net for glimmers: if she shares a clearly good moment and Elpis forgot to offer journaling,
+# offer it anyway (never in a crisis, never when the good word is negated: "not great").
+GLIMMER = re.compile(r"\b(happy|happier|great|good|lovely|nice|amazing|wonderful|fun|excited|love|loved|enjoy(?:ed)?|"
+                     r"beautiful|glad|grateful|proud|laugh(?:ed)?|smil(?:e|ed)|sunny|coffee|paint(?:ing)?|best)\b", re.I)
+NEGATED = re.compile(r"\b(not|no|never|isn't|wasn't|don't|didn't|can't|couldn't|hardly|nothing)\W+(?:\w+\W+){0,2}?$", re.I)
+
+
+HEAVY = re.compile(r"\b(hard|awful|sad|cry|crying|cried|tired|exhausted|lonely|alone|miss|missing|lost|loss|grief|"
+                   r"grieving|hurt|hurts|pain|anxious|scared|worst|terrible|bad|miscarriage|baby|empty|numb)\b", re.I)
+
+
+def _is_glimmer(text):
+    if HEAVY.search(text):   # mixed or sarcastic ("great, another hard day"): leave it to Elpis
+        return False
+    for m in GLIMMER.finditer(text):
+        if not NEGATED.search(text[:m.start()]):
+            return True
+    return False
+
+
+def _journal_question(reply):
+    questions = re.findall(r"[^.!?\n]*\?", reply)
+    q = questions[-1].strip() if questions else ""
+    return q if 8 <= len(q) <= 120 else "What made it so good?"
+
+
 def _sse(event, data):
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
@@ -249,6 +275,8 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
             yield _sse("error", {"message": getattr(e, "message", str(e))})
             return
         visible, meta = _split_reply(full)
+        if not crisis and meta.get("action") is None and text and _is_glimmer(text):
+            meta["action"], meta["journal_prompt"] = "journal", _journal_question(visible)
         if crisis or meta.get("action") == "crisis":
             meta["safety"] = card or safety.card("suicide")
             meta["suggestions"] = []
