@@ -318,19 +318,21 @@ $("j-keep").onclick = async () => {
   if (!text) { $("j-text").focus(); return; }
   $("j-keep").disabled = true;
   // Jump to Restworld right away; the card says "sketching..." until Claude finishes drawing.
-  setTab("rw");
+  await setTab("rw");   // let Restworld finish loading first, or it would wipe the sketching card
   const placeholder = placePaper({ id: "pending", title: text.slice(0, 40) }, { pending: true });
   try {
     const moment = await api("/api/moments", { prompt: journalPrompt, text });
     state.moments += 1;
-    placeholder.remove();
-    placePaper(moment, { fresh: true });
+    // the sketching card becomes the sketch right where it is floating
+    placeholder.m = moment; placeholder.pending = false; placeholder.tilt = tilt(moment.id);
+    placeholder.el.innerHTML = `<img alt="" src="${svgSrc(moment.svg)}"><div>${escapeHtml(moment.title.toLowerCase())}</div>`;
     $("j-text").value = "";   // ready for the next entry
     $("j-keep").disabled = false;
     clearTransient();
     addEvent("✦ Kept in your Restworld", moment.title, openKept(moment.id, moment.title));
   } catch (e) {
-    placeholder.querySelector(".sketching").textContent = "couldn't sketch — try again";
+    placeholder.el.querySelector(".sketching").textContent = "couldn't sketch — try again";
+    placeholder.pending = false;   // not saved; it goes away the next time Restworld loads
     $("j-keep").disabled = false;
   }
 };
@@ -380,7 +382,7 @@ function placePaper(m, { pending, fresh } = {}) {
     remove() { el.remove(); rw.cards = rw.cards.filter((c) => c !== card); },
   };
   if (pending || fresh) {   // glide in from the right edge, like the original
-    card.x = rw.worldW + CARD_W; card.heading = Math.PI + (Math.random() - 0.5) * 0.6; card.vx = -40;
+    card.x = rw.W - rw.panX; card.heading = Math.PI + (Math.random() - 0.5) * 0.6; card.vx = -60;   // half-visible at the right edge
   }
   el.addEventListener("pointerdown", (e) => startCardDrag(e, card));
   $("rw-canvas").appendChild(el);
@@ -450,7 +452,7 @@ async function loadRestworld() {
   const moments = await api("/api/moments");
   state.moments = moments.length;
   moments.forEach((m) => placePaper(m));
-  $("rw-empty").hidden = moments.length > 0;
+  $("rw-empty").hidden = rw.cards.length > 0;
 }
 
 // Drag one card. A press that doesn't move is a tap: hold it close.
