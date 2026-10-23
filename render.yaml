@@ -1,0 +1,21 @@
+# Render Blueprint: New → Blueprint → pick this repo. Render will ask for the secret values.
+services:
+  - type: web
+    name: elpis
+    runtime: docker
+    plan: starter            # the free plan can't attach a disk, so conversations wouldn't survive restarts
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: elpis-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELPIS_PASSCODE
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        value: sBvsMygZdQhmlWowjJb0

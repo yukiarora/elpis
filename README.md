@@ -29,6 +29,8 @@ Hosted, each friend's browser gets its own private Elpis (name, conversation, me
 3. **Volume**: add a volume to the service, mounted at `/data`, so conversations survive redeploys.
 4. **Settings → Networking → Generate Domain**, then share the link and the passcode.
 
+**Or on Render:** render.com → **New → Blueprint** → `elpis`. `render.yaml` sets up the Starter plan, a disk at `/data` and the health check; Render asks for `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY` and `ELPIS_PASSCODE`.
+
 Without `ELPIS_PASSCODE` (like on your own machine) there's no passcode and a single user.
 
 ## How it's built
